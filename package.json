@@ -1,0 +1,11 @@
+{
+  "name": "deutsch-toolbox",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "德语 B1/B2 本地学习工具箱（零构建、纯前端 + Node 自检）",
+  "scripts": {
+    "start": "node server.js",
+    "selftest": "node js/selftest/run_all.js"
+  }
+}

@@ -1,0 +1,11 @@
+# 无头浏览器临时配置目录（截图脚本会用，不应入库）
+.edgeprofile/
+
+# 依赖与日志
+node_modules/
+*.log
+
+# 系统与编辑器残留
+.DS_Store
+Thumbs.db
+desktop.ini
