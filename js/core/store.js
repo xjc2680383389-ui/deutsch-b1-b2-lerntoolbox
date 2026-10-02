@@ -20,7 +20,7 @@ export function emptyDb() {
     events: [],           // 学习事件流水
     mistakes: [],         // 错题本
     quizStats: {},        // topicId -> {attempts, correct}
-    listeningStats: {},   // sentenceId -> {plays, best}
+    listeningStats: {},   // sentenceId -> {plays: 自检提交次数（历史字段名）, best: 0/100 通过标记}
   };
 }
 

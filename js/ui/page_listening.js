@@ -81,7 +81,7 @@ function paint() {
           <div class="row">
             <button class="btn primary" id="check-btn">自检</button>
             <button class="btn ghost" id="clear-btn">清空</button>
-            <span class="small muted">已播放 ${stat.plays} 次　最佳 ${stat.best ? stat.best + ' 分' : '—'}</span>
+            <span class="small muted">已自检 ${stat.plays} 次　${stat.best >= 100 ? '曾通过' : '尚未通过'}</span>
           </div>
 
           ${result ? `

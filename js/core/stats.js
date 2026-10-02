@@ -41,7 +41,7 @@ function dayRange(days, now) {
   return out;
 }
 
-// 每日学习量：统计每天产生的学习事件条数（背卡+练习+听力）
+// 每日学习量：统计每天产生的学习事件条数（背卡评分+语法练习+听力自检提交，不含播放）
 export function dailyVolume(events, days, now) {
   const range = dayRange(days, now);
   const buckets = {};

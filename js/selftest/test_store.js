@@ -58,6 +58,39 @@ export const results = [
     eq(sanitizeDb('abc').version, SCHEMA_VERSION, '字符串输入');
     eq(sanitizeDb(42).version, SCHEMA_VERSION, '数字输入');
   }),
+  t('旧版听力自检字段经清洗和重载仍保持原值', () => {
+    const initial = {
+      version: 1,
+      profile: { createdAt: 1 },
+      listeningStats: { l01: { plays: 7, best: 100 }, l02: { plays: 3, best: 0 } },
+    };
+    const cleaned = sanitizeDb(initial);
+    eq(cleaned.listeningStats.l01.plays, 7, '历史自检次数');
+    eq(cleaned.listeningStats.l01.best, 100, '曾通过标记');
+    eq(cleaned.listeningStats.l02.best, 0, '尚未通过标记');
+    const store = createStore(createMemoryBackend(initial));
+    store.load();
+    eq(store.data.listeningStats.l01.plays, 7, '重载不能把次数清零');
+    eq(store.data.version, 1, '结构版本保持 v1');
+  }),
+  t('听力自检次数和事件经备份往返保持一致', () => {
+    const store = createStore(createMemoryBackend({
+      profile: { createdAt: 1 },
+      listeningStats: { l01: { plays: 2, best: 100 } },
+      events: [
+        { ts: 10, type: 'listening', topic: 'l01', correct: false },
+        { ts: 11, type: 'listening', topic: 'l01', correct: true },
+      ],
+    }));
+    const restored = createStore(createMemoryBackend());
+    eq(restored.importJson(store.exportJson()).ok, true, '导入成功');
+    restored.load();
+    eq(restored.data.listeningStats.l01.plays, 2, '自检次数');
+    eq(restored.data.listeningStats.l01.best, 100, '通过标记');
+    eq(restored.data.events.length, 2, '听力自检事件数');
+    eq(restored.data.events[1].correct, true, '自检通过结果');
+    eq(JSON.stringify(restored.data.listeningStats), JSON.stringify(store.data.listeningStats), '听力字段往返');
+  }),
   t('重置清空所有学习数据', () => {
     const store = createStore(createMemoryBackend());
     store.update((db) => { db.events.push({ ts: 1, type: 'card', correct: true }); return db; });

@@ -39,6 +39,21 @@ export const results = [
     near(a[1].rate, 1, 1e-9, '昨天正确率');
     eq(a[0].rate, null, '无数据当天应为 null');
   }),
+  t('背卡、语法和听力自检共同计入学习量与正确率', () => {
+    const events = [ev(0, true, 'card'), ev(0, true, 'quiz'), ev(0, false, 'listening')];
+    const volume = dailyVolume(events, 1, T0)[0];
+    const accuracy = dailyAccuracy(events, 1, T0)[0];
+    const sum = summarize(events, {}, T0);
+    eq(volume.count, 3, '学习量应包含听力自检');
+    eq(accuracy.total, 3, '每日正确率分母应包含听力自检');
+    near(accuracy.rate, 2 / 3, 1e-9, '每日正确率');
+    eq(sum.totalEvents, 3, '累计量');
+    eq(sum.todayCount, 3, '今日量');
+    eq(sum.streak, 1, '连续学习天数');
+    eq(sum.cardReviews, 1, '背卡次数');
+    eq(sum.quizAnswers, 1, '语法题数');
+    near(sum.accuracy, 2 / 3, 1e-9, '总正确率');
+  }),
   t('未来 7 天到期分布：逾期计入今天', () => {
     const states = {
       a: { id: 'a', due: T0 - 3 * DAY_MS },   // 逾期

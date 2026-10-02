@@ -65,6 +65,8 @@ export function recordQuiz(topicId, qtype, correct) {
   });
 }
 
+// 记录一次听写自检提交（按钮或 Enter）；播放不调用此函数。
+// v1 历史字段 plays 表示自检提交次数，包含空答案及重复提交；best 为 0/100 的通过标记。
 export function recordListening(sentenceId, passed) {
   pushEvent({ type: 'listening', topic: sentenceId, correct: !!passed });
   store.update((db) => {
