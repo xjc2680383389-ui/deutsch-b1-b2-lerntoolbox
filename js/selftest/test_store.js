@@ -4,6 +4,51 @@ import { t, assert, eq } from './harness.js';
 
 export const title = '持久化与数据结构';
 export const results = [
+  t('多个实例交替写入保留其他实例的新事件', () => {
+    const backend = createMemoryBackend();
+    const a = createStore(backend), b = createStore(backend);
+    a.update((db) => { db.events.push({ ts: 1 }); return db; });
+    b.update((db) => { db.events.push({ ts: 2 }); return db; });
+    a.update((db) => { db.events.push({ ts: 3 }); return db; });
+    b.load();
+    eq(b.data.events.length, 3, '保留所有事件');
+  }),
+  t('保存失败回滚修改并报告错误，恢复后可重试', () => {
+    const backend = createMemoryBackend();
+    let errors = 0;
+    const store = createStore(backend, () => { errors += 1; });
+    const savedSet = backend.setItem;
+    backend.setItem = () => { throw new Error('quota'); };
+    store.update((db) => { db.events.push({ ts: 1 }); return db; });
+    eq(store.lastSaveOk, false, '失败结果');
+    eq(store.data.events.length, 0, '回滚修改');
+    eq(errors, 1, '错误通知');
+    backend.setItem = savedSet;
+    store.update((db) => { db.events.push({ ts: 2 }); return db; });
+    eq(store.lastSaveOk, true, '恢复成功');
+    eq(store.data.events.length, 1, '只记录成功写入');
+  }),
+  t('导入和清空保存失败保留原数据', () => {
+    const backend = createMemoryBackend({ profile: { createdAt: 1 }, events: [{ ts: 1 }] });
+    const store = createStore(backend);
+    backend.setItem = () => { throw new Error('denied'); };
+    eq(store.importJson('{}').ok, false, '导入失败');
+    eq(store.data.events.length, 1, '保留原数据');
+    store.reset();
+    eq(store.lastSaveOk, false, '清空失败');
+    eq(store.data.events.length, 1, '保留原数据');
+  }),
+  t('读取失败不覆盖旧存储', () => {
+    const backend = createMemoryBackend({ profile: { createdAt: 1 }, events: [{ ts: 1 }] });
+    const store = createStore(backend);
+    let writes = 0;
+    backend.getItem = () => { throw new Error('denied'); };
+    backend.setItem = () => { writes += 1; };
+    store.update((db) => { db.events.push({ ts: 2 }); return db; });
+    eq(writes, 0, '不覆盖');
+    eq(store.data.events.length, 1, '保留旧数据');
+    eq(store.lastSaveOk, false, '失败结果');
+  }),
   t('空库结构符合钉死的数据格式', () => {
     const db = emptyDb();
     eq(db.version, SCHEMA_VERSION, '结构版本');

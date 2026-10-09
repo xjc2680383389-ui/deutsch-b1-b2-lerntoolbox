@@ -2,14 +2,17 @@
 import { createStore, STORAGE_KEY } from '../core/store.js';
 import { BUILTIN_DECKS, VOCAB, TOPICS } from '../data/index.js';
 import { collectMistake } from '../core/mistakes.js';
+import { toast } from './util.js';
 
 const backend = {
-  getItem: (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  setItem: (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* 忽略配额错误 */ } },
-  removeItem: (k) => { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } },
+  getItem: (k) => window.localStorage.getItem(k),
+  setItem: (k, v) => window.localStorage.setItem(k, v),
+  removeItem: (k) => window.localStorage.removeItem(k),
 };
 
-export const store = createStore(backend);
+export const store = createStore(backend, () => {
+  if (typeof document !== 'undefined') toast('保存失败：请检查浏览器存储权限或可用空间，本次修改未保存。');
+});
 export { STORAGE_KEY };
 
 // 虚拟时钟：真实时间 + 时间机器偏移（用于跨天复习模拟）
@@ -67,15 +70,24 @@ export function recordQuiz(topicId, qtype, correct) {
 
 // 记录一次听写自检提交（按钮或 Enter）；播放不调用此函数。
 // v1 历史字段 plays 表示自检提交次数，包含空答案及重复提交；best 为 0/100 的通过标记。
-export function recordListening(sentenceId, passed) {
-  pushEvent({ type: 'listening', topic: sentenceId, correct: !!passed });
-  store.update((db) => {
-    const s = db.listeningStats[sentenceId] || { plays: 0, best: 0 };
-    s.plays += 1;
-    s.best = Math.max(s.best || 0, Math.round((passed ? 1 : 0) * 100));
-    db.listeningStats[sentenceId] = s;
-    return db;
-  });
+export function recordListening(sentenceId, passed, mistake) {
+  const write = () => {
+    store.update((db) => {
+      const ts = nowTs();
+      db.events.push({ ts, type: 'listening', topic: sentenceId, correct: !!passed });
+      if (db.events.length > 8000) db.events = db.events.slice(-8000);
+      const s = db.listeningStats[sentenceId] || { plays: 0, best: 0 };
+      s.plays += 1;
+      s.best = Math.max(s.best || 0, Math.round((passed ? 1 : 0) * 100));
+      db.listeningStats[sentenceId] = s;
+      if (mistake) db.mistakes = collectMistake(db.mistakes, Object.assign({ ts }, mistake)).list;
+      return db;
+    });
+    return store.lastSaveOk;
+  };
+  // 原生锁串行保存听力提交；旧浏览器仍在写入前刷新数据。
+  const locks = typeof window !== 'undefined' && window.navigator && window.navigator.locks;
+  return locks ? locks.request(STORAGE_KEY, write) : write();
 }
 
 // 错项入库：背卡（不会）/ 练习 / 听力

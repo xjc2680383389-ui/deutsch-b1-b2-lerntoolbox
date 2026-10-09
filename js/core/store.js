@@ -95,7 +95,8 @@ export function createMemoryBackend(initial) {
   };
 }
 
-export function createStore(backend) {
+export function createStore(backend, onSaveError = () => {}) {
+  let lastSaveOk = true;
   let db = sanitizeDb(readRaw(backend));
   if (!db.profile.createdAt) {
     db.profile.createdAt = Date.now();
@@ -114,29 +115,53 @@ export function createStore(backend) {
   function persist() {
     try {
       backend.setItem(STORAGE_KEY, JSON.stringify(db));
-      return true;
+      return (lastSaveOk = true);
     } catch (err) {
+      lastSaveOk = false;
+      onSaveError(err);
       return false;
     }
   }
 
   return {
     get data() { return db; },
+    get lastSaveOk() { return lastSaveOk; },
     load() { db = sanitizeDb(readRaw(backend)); return db; },
     save() { return persist(); },
     update(fn) {
+      // 写入前刷新其他标签保存的内容；读取失败时不覆盖旧数据。
+      try {
+        const text = backend.getItem(STORAGE_KEY);
+        db = sanitizeDb(text ? JSON.parse(text) : null);
+        if (!db.profile.createdAt) db.profile.createdAt = Date.now();
+      } catch (err) {
+        lastSaveOk = false;
+        onSaveError(err);
+        return db;
+      }
+      const previous = JSON.stringify(db);
       const next = fn(db);
       if (next && typeof next === 'object') db = next;
-      persist();
+      if (!persist()) db = JSON.parse(previous);
       return db;
     },
-    reset() { db = emptyDb(); db.profile.createdAt = Date.now(); persist(); return db; },
+    reset() {
+      const previous = db;
+      db = emptyDb();
+      db.profile.createdAt = Date.now();
+      if (!persist()) db = previous;
+      return db;
+    },
     exportJson() { return JSON.stringify(db, null, 2); },
     importJson(text) {
       let parsed = null;
       try { parsed = JSON.parse(text); } catch (err) { return { ok: false, error: '不是合法的 JSON 文本' }; }
+      const previous = db;
       db = sanitizeDb(parsed);
-      persist();
+      if (!persist()) {
+        db = previous;
+        return { ok: false, error: '无法保存到浏览器，请检查存储权限或可用空间' };
+      }
       return { ok: true };
     },
   };

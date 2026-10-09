@@ -49,25 +49,69 @@ export function fmtPercent(x) {
   return Math.round(x * 100) + '%';
 }
 
-// 语音合成（浏览器内置，不依赖任何在线服务）
-export function speak(text, rate) {
+let activeUtterance = null;
+
+export function stopSpeech() {
+  activeUtterance = null;
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    try { window.speechSynthesis.cancel(); } catch (err) { /* 取消失败不阻止页面切换 */ }
+  }
+}
+
+// 返回值只表示请求已发出；实际播放结果由异步事件通知。
+export function speak(text, rate, onStatus) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     return { ok: false, msg: '当前浏览器不支持语音合成，请改用系统朗读功能对照原文练习。' };
   }
   try {
-    window.speechSynthesis.cancel();
+    stopSpeech();
     const u = new window.SpeechSynthesisUtterance(text);
     u.lang = 'de-DE';
     u.rate = rate || 0.9;
+    const voices = window.speechSynthesis.getVoices() || [];
+    const german = voices.find((v) => /^de-DE$/i.test(v.lang)) || voices.find((v) => /^de(?:[-_]|$)/i.test(v.lang));
+    if (german) u.voice = german;
+    activeUtterance = u;
+    u.onstart = () => { if (activeUtterance === u && onStatus) onStatus('正在播放。'); };
+    u.onend = () => {
+      if (activeUtterance !== u) return;
+      activeUtterance = null;
+      if (onStatus) onStatus('播放结束。');
+    };
+    u.onerror = (e) => {
+      if (activeUtterance !== u) return;
+      activeUtterance = null;
+      if (e.error === 'canceled' || e.error === 'interrupted') {
+        if (onStatus) onStatus('播放已停止。');
+        return;
+      }
+      const messages = {
+        'language-unavailable': '没有可用的德语语音，请安装德语语音包。',
+        'voice-unavailable': '所选语音不可用，请重试或检查系统语音包。',
+        'not-allowed': '浏览器未允许朗读，请点击播放按钮重试。',
+        'network': '语音服务连接失败，请检查网络或使用本地语音包。',
+        'audio-busy': '音频设备忙，请稍后重试。',
+        'audio-hardware': '音频设备不可用，请检查声音输出。',
+      };
+      const msg = '朗读失败：' + (messages[e.error] || '语音合成不可用，请重试或对照原文练习。');
+      if (onStatus) onStatus(msg);
+      else toast(msg);
+    };
+    if (onStatus) onStatus('正在准备语音…');
     window.speechSynthesis.speak(u);
     return { ok: true, msg: '' };
   } catch (err) {
+    activeUtterance = null;
     return { ok: false, msg: '朗读失败：' + (err && err.message ? err.message : err) };
   }
 }
 
 export function hasGermanVoice() {
   if (typeof window === 'undefined' || !window.speechSynthesis) return false;
-  const voices = window.speechSynthesis.getVoices() || [];
-  return voices.some((v) => /de[-_]/i.test(v.lang || ''));
+  try {
+    const voices = window.speechSynthesis.getVoices() || [];
+    return voices.some((v) => /^de(?:[-_]|$)/i.test(v.lang || ''));
+  } catch (err) {
+    return false;
+  }
 }
