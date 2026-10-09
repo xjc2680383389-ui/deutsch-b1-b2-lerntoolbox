@@ -6,6 +6,7 @@ import { results as rMistakes, title as titleMistakes } from './test_mistakes.js
 import { results as rStats, title as titleStats } from './test_stats.js';
 import { results as rStore, title as titleStore } from './test_store.js';
 import { results as rListening, title as titleListening } from './test_listening.js';
+import { results as rListeningUi, title as titleListeningUi } from './test_listening_ui.js';
 import { results as rData, title as titleData } from './test_data.js';
 
 const GROUPS = [
@@ -16,6 +17,7 @@ const GROUPS = [
   [titleStats, rStats],
   [titleStore, rStore],
   [titleListening, rListening],
+  [titleListeningUi, rListeningUi],
   [titleData, rData],
 ];
 
@@ -36,7 +38,7 @@ let index = 0;
 
 console.log('');
 console.log(paint(BOLD, '德语 B1/B2 学习工具箱 · 自检'));
-console.log(paint(DIM, '逻辑层不依赖浏览器，全部测试使用注入的虚拟时钟与固定种子'));
+console.log(paint(DIM, '固定输入、虚拟时钟与固定种子；听力界面联动使用 DOM/TTS/localStorage 替身'));
 console.log('');
 
 GROUPS.forEach(([title, list]) => {

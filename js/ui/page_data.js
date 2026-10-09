@@ -214,6 +214,7 @@ function paint() {
   qs('#wipe-btn').addEventListener('click', () => {
     if (!window.confirm('确定要清空全部学习数据吗？该操作不可撤销，建议先导出备份。')) return;
     store.reset();
+    if (!store.lastSaveOk) return;
     activeDeck = '';
     toast('数据已清空');
     paint();

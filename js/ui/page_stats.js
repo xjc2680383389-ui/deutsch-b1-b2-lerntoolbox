@@ -32,7 +32,7 @@ function paint() {
       <div class="stat"><div class="label">累计学习</div><div class="value">${answered}</div><div class="sub">次</div></div>
       <div class="stat"><div class="label">今日学习</div><div class="value">${sum.todayCount}</div><div class="sub">目标 ${db.settings.dailyGoal} 次</div></div>
       <div class="stat"><div class="label">连续学习</div><div class="value">${sum.streak}</div><div class="sub">天</div></div>
-      <div class="stat"><div class="label">总正确率</div><div class="value">${fmtPercent(sum.accuracy)}</div><div class="sub">背卡 ${sum.cardReviews} 次 · 练习 ${sum.quizAnswers} 题</div></div>
+      <div class="stat"><div class="label">总正确率</div><div class="value">${fmtPercent(sum.accuracy)}</div><div class="sub">包含背卡、语法练习和听力自检（按是否通过判定）</div></div>
     </div>
 
     <div class="panel">
@@ -86,7 +86,7 @@ function paint() {
             ${db.events.slice(-12).reverse().map((e) => `
               <tr>
                 <td class="small">${esc(new Date(e.ts).toLocaleString('zh-CN'))}</td>
-                <td>${esc(e.type === 'card' ? '背卡' : e.type === 'quiz' ? '语法练习' : '听力精听')}</td>
+                <td>${esc(e.type === 'card' ? '背卡' : e.type === 'quiz' ? '语法练习' : '听力自检')}</td>
                 <td>${esc(e.type === 'card' ? e.deck : e.type === 'quiz' ? e.topic : e.topic)}</td>
                 <td>${e.correct ? '<span class="tag b1">正确</span>' : '<span class="tag" style="background:var(--bad-soft);color:var(--bad);border-color:#f0bdbb">错误</span>'}</td>
               </tr>`).join('')}

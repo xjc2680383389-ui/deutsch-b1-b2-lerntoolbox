@@ -4,6 +4,51 @@ import { t, assert, eq } from './harness.js';
 
 export const title = '持久化与数据结构';
 export const results = [
+  t('多个实例交替写入保留其他实例的新事件', () => {
+    const backend = createMemoryBackend();
+    const a = createStore(backend), b = createStore(backend);
+    a.update((db) => { db.events.push({ ts: 1 }); return db; });
+    b.update((db) => { db.events.push({ ts: 2 }); return db; });
+    a.update((db) => { db.events.push({ ts: 3 }); return db; });
+    b.load();
+    eq(b.data.events.length, 3, '保留所有事件');
+  }),
+  t('保存失败回滚修改并报告错误，恢复后可重试', () => {
+    const backend = createMemoryBackend();
+    let errors = 0;
+    const store = createStore(backend, () => { errors += 1; });
+    const savedSet = backend.setItem;
+    backend.setItem = () => { throw new Error('quota'); };
+    store.update((db) => { db.events.push({ ts: 1 }); return db; });
+    eq(store.lastSaveOk, false, '失败结果');
+    eq(store.data.events.length, 0, '回滚修改');
+    eq(errors, 1, '错误通知');
+    backend.setItem = savedSet;
+    store.update((db) => { db.events.push({ ts: 2 }); return db; });
+    eq(store.lastSaveOk, true, '恢复成功');
+    eq(store.data.events.length, 1, '只记录成功写入');
+  }),
+  t('导入和清空保存失败保留原数据', () => {
+    const backend = createMemoryBackend({ profile: { createdAt: 1 }, events: [{ ts: 1 }] });
+    const store = createStore(backend);
+    backend.setItem = () => { throw new Error('denied'); };
+    eq(store.importJson('{}').ok, false, '导入失败');
+    eq(store.data.events.length, 1, '保留原数据');
+    store.reset();
+    eq(store.lastSaveOk, false, '清空失败');
+    eq(store.data.events.length, 1, '保留原数据');
+  }),
+  t('读取失败不覆盖旧存储', () => {
+    const backend = createMemoryBackend({ profile: { createdAt: 1 }, events: [{ ts: 1 }] });
+    const store = createStore(backend);
+    let writes = 0;
+    backend.getItem = () => { throw new Error('denied'); };
+    backend.setItem = () => { writes += 1; };
+    store.update((db) => { db.events.push({ ts: 2 }); return db; });
+    eq(writes, 0, '不覆盖');
+    eq(store.data.events.length, 1, '保留旧数据');
+    eq(store.lastSaveOk, false, '失败结果');
+  }),
   t('空库结构符合钉死的数据格式', () => {
     const db = emptyDb();
     eq(db.version, SCHEMA_VERSION, '结构版本');
@@ -57,6 +102,39 @@ export const results = [
     eq(sanitizeDb(null).version, SCHEMA_VERSION, 'null 输入');
     eq(sanitizeDb('abc').version, SCHEMA_VERSION, '字符串输入');
     eq(sanitizeDb(42).version, SCHEMA_VERSION, '数字输入');
+  }),
+  t('旧版听力自检字段经清洗和重载仍保持原值', () => {
+    const initial = {
+      version: 1,
+      profile: { createdAt: 1 },
+      listeningStats: { l01: { plays: 7, best: 100 }, l02: { plays: 3, best: 0 } },
+    };
+    const cleaned = sanitizeDb(initial);
+    eq(cleaned.listeningStats.l01.plays, 7, '历史自检次数');
+    eq(cleaned.listeningStats.l01.best, 100, '曾通过标记');
+    eq(cleaned.listeningStats.l02.best, 0, '尚未通过标记');
+    const store = createStore(createMemoryBackend(initial));
+    store.load();
+    eq(store.data.listeningStats.l01.plays, 7, '重载不能把次数清零');
+    eq(store.data.version, 1, '结构版本保持 v1');
+  }),
+  t('听力自检次数和事件经备份往返保持一致', () => {
+    const store = createStore(createMemoryBackend({
+      profile: { createdAt: 1 },
+      listeningStats: { l01: { plays: 2, best: 100 } },
+      events: [
+        { ts: 10, type: 'listening', topic: 'l01', correct: false },
+        { ts: 11, type: 'listening', topic: 'l01', correct: true },
+      ],
+    }));
+    const restored = createStore(createMemoryBackend());
+    eq(restored.importJson(store.exportJson()).ok, true, '导入成功');
+    restored.load();
+    eq(restored.data.listeningStats.l01.plays, 2, '自检次数');
+    eq(restored.data.listeningStats.l01.best, 100, '通过标记');
+    eq(restored.data.events.length, 2, '听力自检事件数');
+    eq(restored.data.events[1].correct, true, '自检通过结果');
+    eq(JSON.stringify(restored.data.listeningStats), JSON.stringify(store.data.listeningStats), '听力字段往返');
   }),
   t('重置清空所有学习数据', () => {
     const store = createStore(createMemoryBackend());

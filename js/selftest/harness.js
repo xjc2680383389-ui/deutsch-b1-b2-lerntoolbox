@@ -12,6 +12,15 @@ export function assert(cond, msg) {
   if (!cond) throw new Error(msg || '断言失败');
 }
 
+export async function tAsync(name, fn) {
+  try {
+    await fn();
+    return { name, pass: true, detail: '' };
+  } catch (err) {
+    return { name, pass: false, detail: err && err.message ? err.message : String(err) };
+  }
+}
+
 export function eq(actual, expected, msg) {
   if (actual !== expected) {
     throw new Error(`${msg ? msg + '：' : ''}期望 ${JSON.stringify(expected)}，实际 ${JSON.stringify(actual)}`);
