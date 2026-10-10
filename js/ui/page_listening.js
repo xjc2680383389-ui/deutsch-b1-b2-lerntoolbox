@@ -1,4 +1,4 @@
-// 听力精听页：左侧原文、右侧竖排解析；逐句播放与逐句自检
+// 听力精听页：原文与解析横排；逐句播放与逐句自检
 import { LISTENING } from '../data/index.js';
 import { store, recordListening } from './state.js';
 import { judgeListening, diffWords } from '../core/listening.js';
@@ -85,7 +85,7 @@ function paint() {
   rootEl.innerHTML = `
     <div class="page-head">
       <h1>听力精听</h1>
-      <p>共 ${LISTENING.length} 句（B1 / B2 分级）。流程：播放 → 听写 → 自检 → 对照竖排解析。<span id="voice-hint"></span></p>
+      <p>共 ${LISTENING.length} 句（B1 / B2 分级）。流程：播放 → 听写 → 自检 → 对照逐句解析。<span id="voice-hint"></span></p>
     </div>
 
     <div class="panel">

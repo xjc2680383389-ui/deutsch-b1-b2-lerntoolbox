@@ -1,4 +1,4 @@
-// 背卡页：间隔重复复习，支持翻面、三档评分、跨天复习（配合时间机器）
+// 背卡页：间隔重复复习，支持翻面、二元回忆评分、跨天复习（配合时间机器）
 import { store, nowTs, allDecks, cardsOfDeck, deckName, recordCardReview, addMistake } from './state.js';
 import { createState, schedule, buildReviewQueue, previewInterval, RATING, RATING_LABEL } from '../core/srs.js';
 import { deckOverview } from '../core/stats.js';
@@ -49,7 +49,7 @@ function paint() {
 
   if (!session) {
     rootEl.innerHTML = `
-      <div class="page-head"><h1>背卡</h1><p>按间隔重复算法安排复习顺序：到期卡片优先，其次新卡。</p></div>
+      <div class="page-head"><h1>背卡</h1><p>根据回忆结果和实际复习间隔安排复习：到期卡片优先，其次新卡。翻面对照后，选择“不会”或“会”。</p></div>
       <div class="panel">
         <div class="row">
           <div class="field" style="min-width:220px;flex:1">
@@ -90,6 +90,7 @@ function paint() {
   const card = session.queue[session.idx];
   const dbNow = store.data;
   const st = dbNow.states[card.id] || createState(card.id);
+  const nextDays = previewInterval(st, RATING.KNOWN, nowTs());
   const progress = Math.min(1, session.done / Math.max(1, session.planned));
 
   rootEl.innerHTML = `
@@ -109,8 +110,7 @@ function paint() {
     <div class="row center mt16" style="justify-content:center">
       ${session.flipped ? `
         <button class="btn danger rate-btn" data-rate="0">不会<span class="hint">本轮再来</span></button>
-        <button class="btn rate-btn" data-rate="1">模糊<span class="hint">${previewInterval(st, RATING.FUZZY)} 天后再来</span></button>
-        <button class="btn primary rate-btn" data-rate="2">会<span class="hint">${previewInterval(st, RATING.KNOWN)} 天后再来</span></button>
+        <button class="btn primary rate-btn" data-rate="2">会<span class="hint">${nextDays > 0 ? nextDays + ' 天后再来' : '达到模型目标，暂不安排复习'}</span></button>
       ` : `<button class="btn primary" id="flip-btn">翻面（空格键）</button>`}
     </div>
     <div class="row center mt16" style="justify-content:center">
@@ -136,6 +136,7 @@ function start(deckId) {
   if (!cards.length) { toast('该卡组暂无词条'); return; }
   const now = nowTs();
   const queue = buildReviewQueue(cards, store.data.states, now, limit).map((c) => c);
+  if (!queue.length) { toast('本卡组已达到模型设定的长期记忆目标，暂无复习卡片。'); return; }
   session = {
     deckId,
     queue,
