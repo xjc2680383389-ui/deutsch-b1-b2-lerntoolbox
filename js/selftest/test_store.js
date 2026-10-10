@@ -1,9 +1,25 @@
 // store 模块自检（内存后端，可重复运行）
 import { createStore, createMemoryBackend, emptyDb, sanitizeDb, SCHEMA_VERSION, STORAGE_KEY } from '../core/store.js';
 import { t, assert, eq } from './harness.js';
+import { createState, schedule, RATING, DAY_MS } from '../core/srs.js';
 
 export const title = '持久化与数据结构';
 export const results = [
+  t('DHP 状态、终点及旧进度可以保存重载与备份往返', () => {
+    const store = createStore(createMemoryBackend());
+    let s = createState('a');
+    for (let i = 0; i < 6; i++) s = schedule(s, RATING.KNOWN, i ? s.due : 1767258000000);
+    const legacy = { id: 'old', ef: 2.5, due: 1767258000000 + DAY_MS, totalReviews: 9, history: [] };
+    store.update((db) => { db.states.a = s; db.states.old = legacy; return db; });
+    store.load();
+    const other = createStore(createMemoryBackend());
+    eq(other.importJson(store.exportJson()).ok, true);
+    other.load();
+    eq(JSON.stringify(other.data.states.a), JSON.stringify(s));
+    eq(JSON.stringify(other.data.states.old), JSON.stringify(legacy));
+    eq(other.data.states.a.memoryTargetReached, true);
+    assert(Number.isFinite(other.data.states.a.due));
+  }),
   t('多个实例交替写入保留其他实例的新事件', () => {
     const backend = createMemoryBackend();
     const a = createStore(backend), b = createStore(backend);
