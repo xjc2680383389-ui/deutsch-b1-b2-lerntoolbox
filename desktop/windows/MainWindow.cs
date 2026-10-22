@@ -15,7 +15,7 @@ namespace DeutschAssistant
     internal sealed partial class MainWindow : Form
     {
         internal const string Origin = "https://deutsch-assistant.example";
-        internal readonly WebView2 Web = new WebView2();
+        internal readonly DesktopWebView Web = new DesktopWebView();
         internal readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 32*1024*1024 };
         private readonly string profile,qa;
         private readonly bool verify;
@@ -35,6 +35,7 @@ namespace DeutschAssistant
             string icon=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"app.ico");
             if(File.Exists(icon)) Icon=new Icon(icon);
             InitializeChrome();
+            Web.Shortcut=RunDesktopShortcut;
             loading=new Label { Text="正在准备你的学习空间…",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Microsoft YaHei UI",13F),ForeColor=Color.FromArgb(23,107,88) };
             Web.Dock=DockStyle.Fill; Web.Visible=false;
             var content=new Panel { Dock=DockStyle.Fill,Margin=Padding.Empty };
@@ -57,14 +58,6 @@ namespace DeutschAssistant
                 var environment=await CoreWebView2Environment.CreateAsync(null,profile);
                 await Web.EnsureCoreWebView2Async(environment);
                 var core=Web.CoreWebView2;
-                Web.CoreWebView2Controller.AcceleratorKeyPressed+=(s,e)=> {
-                    if(e.KeyEventKind!=CoreWebView2KeyEventKind.KeyDown && e.KeyEventKind!=CoreWebView2KeyEventKind.SystemKeyDown) return;
-                    Keys keys=(Keys)e.VirtualKey|Control.ModifierKeys;
-                    if(!IsDesktopShortcut(keys)) return;
-                    e.Handled=true;
-                    // WebView2 blocks synchronous COM calls during this event.
-                    BeginInvoke(new Action(()=>RunDesktopShortcut(keys)));
-                };
                 core.SetVirtualHostNameToFolderMapping("deutsch-assistant.example",assets,CoreWebView2HostResourceAccessKind.Deny);
                 core.Settings.AreDevToolsEnabled=false;
                 core.Settings.IsStatusBarEnabled=false;

@@ -145,6 +145,20 @@ namespace DeutschAssistant
         }
     }
 
+    internal sealed class DesktopWebView : Microsoft.Web.WebView2.WinForms.WebView2
+    {
+        internal Action<Keys> Shortcut;
+        protected override bool ProcessCmdKey(ref Message message,Keys keys)
+        {
+            if(MainWindow.IsDesktopShortcut(keys))
+            {
+                BeginInvoke(new Action(()=>Shortcut?.Invoke(keys)));
+                return true;
+            }
+            return base.ProcessCmdKey(ref message,keys);
+        }
+    }
+
     internal sealed class CaptionButton : Button
     {
         private readonly string action;
