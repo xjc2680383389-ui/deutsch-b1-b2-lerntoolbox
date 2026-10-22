@@ -76,7 +76,7 @@ jobs:
           $installer = (Resolve-Path 'dist/Deutsch-Assistant-Windows-Setup.exe').Path
           $exe = "$installed/DeutschAssistant.exe"
           function Install-App {
-            $setup = Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installed") -WindowStyle Hidden -PassThru -Wait
+            $setup = Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installed","/LOG=$qa/setup.log") -WindowStyle Hidden -PassThru -Wait
             if ($setup.ExitCode -ne 0) { throw 'Installer failed' }
           }
           function Test-App($name, $verify) {
@@ -86,7 +86,7 @@ jobs:
             if (-not $process.WaitForExit(180000)) { $process.Kill(); throw 'Windows smoke test timeout' }
             if ($process.ExitCode -ne 0) { Get-Content "$qa/failure.txt"; throw 'Windows smoke test failed' }
             $report = if ($verify) { 'report-reopen.json' } else { 'report-first.json' }
-            Copy-Item "$qa/$report" "$qa/report-$name.json" -Force
+            if ($report -ne "report-$name.json") { Copy-Item "$qa/$report" "$qa/report-$name.json" -Force }
           }
           function Uninstall-App {
             $uninstall = Start-Process "$installed/unins000.exe" '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -WindowStyle Hidden -PassThru -Wait
@@ -106,14 +106,14 @@ jobs:
           Install-App
           Test-App 'reinstall' $true
           Uninstall-App
-          Copy-Item -Recurse $qa windows-qa
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-ui-qa
           path: |
-            windows-qa/*.json
-            windows-qa/*.png
+            ${{ runner.temp }}/windows-qa/*.json
+            ${{ runner.temp }}/windows-qa/*.png
+            ${{ runner.temp }}/windows-qa/*.log
             ${{ runner.temp }}/windows-qa/failure.txt
           if-no-files-found: warn
           retention-days: 14
