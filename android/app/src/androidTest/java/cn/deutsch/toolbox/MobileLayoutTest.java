@@ -61,6 +61,15 @@ public class MobileLayoutTest {
         });
     }
     private void screenshot(String name) throws Exception {
+        // JS callbacks confirm DOM state; the compositor can still show the prior frame.
+        CountDownLatch painted = new CountDownLatch(1);
+        instrumentation.runOnMainSync(() -> ((WebView)activity.findViewById(R.id.study_webview))
+            .postVisualStateCallback(SystemClock.uptimeMillis(), new WebView.VisualStateCallback() {
+                @Override public void onComplete(long requestId) { painted.countDown(); }
+            }));
+        assertTrue("WebView visual state timeout", painted.await(10,TimeUnit.SECONDS));
+        instrumentation.waitForIdleSync();
+        SystemClock.sleep(400);
         Bitmap bitmap = instrumentation.getUiAutomation().takeScreenshot();
         assertNotNull(bitmap);
         File file = new File(activity.getExternalFilesDir(null), name + ".png");
