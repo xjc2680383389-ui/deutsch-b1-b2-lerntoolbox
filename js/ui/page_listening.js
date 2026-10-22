@@ -1,5 +1,5 @@
 // 听力精听页：左侧原文、右侧竖排解析；逐句播放与逐句自检
-import { LISTENING } from '../data/index.js';
+import { SENTENCES as LISTENING } from '../data/listening.js';
 import { store, recordListening } from './state.js';
 import { judgeListening, diffWords } from '../core/listening.js';
 import { esc, qs, qsa, speak, stopSpeech, hasGermanVoice } from './util.js';

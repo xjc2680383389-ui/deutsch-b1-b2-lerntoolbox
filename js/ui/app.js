@@ -1,49 +1,48 @@
-// 路由与页面挂载
-import { render as renderHome } from './page_home.js';
-import { render as renderCards } from './page_cards.js';
-import { render as renderGrammar } from './page_grammar.js';
-import { render as renderListening, dispose as disposeListening, refresh as refreshListening } from './page_listening.js';
+// 页面模块按需加载；异步路由用序号避免快速切页后旧页面覆盖新页面。
 import { store, STORAGE_KEY } from './state.js';
-import { render as renderMistakes } from './page_mistakes.js';
-import { render as renderStats } from './page_stats.js';
-import { render as renderData } from './page_data.js';
-import { seedDemo } from './demo.js';
 import { icon } from './icons.js';
+import { esc } from './util.js';
+import { initSelects, closeSelect } from './selects.js';
 
-document.querySelectorAll('.nav a[data-icon]').forEach((a) => {
-  a.insertAdjacentHTML('afterbegin', icon(a.dataset.icon));
-});
+const PAGES = {
+  home: () => import('./page_home.js'),
+  cards: () => import('./page_cards.js'),
+  grammar: () => import('./page_grammar.js'),
+  listening: () => import('./page_listening.js'),
+  mistakes: () => import('./page_mistakes.js'),
+  stats: () => import('./page_stats.js'),
+  data: () => import('./page_data.js'),
+};
+const VALID = Object.keys(PAGES);
+let currentModule = null;
+let mountedKey = '';
+let navigation = 0;
+let booted = false;
+
+document.querySelectorAll('.nav a[data-icon]').forEach((a) => a.insertAdjacentHTML('afterbegin', icon(a.dataset.icon)));
 document.querySelector('.skip-link').addEventListener('click', (event) => {
   event.preventDefault();
   document.getElementById('workspace').focus();
 });
-
-const PAGES = {
-  home: renderHome,
-  cards: renderCards,
-  grammar: renderGrammar,
-  listening: renderListening,
-  mistakes: renderMistakes,
-  stats: renderStats,
-  data: renderData,
-};
-
-const VALID = Object.keys(PAGES);
-let previousKey = '';
+initSelects(document.getElementById('workspace'));
 
 function currentKey() {
   const raw = (location.hash || '').replace(/^#\/?/, '').trim();
-  return VALID.indexOf(raw) >= 0 ? raw : 'home';
+  return VALID.includes(raw) ? raw : 'home';
 }
 
-function route() {
+async function route() {
   const key = currentKey();
-  if (previousKey === 'listening' && key !== 'listening') disposeListening();
-  previousKey = key;
-  VALID.forEach((k) => {
-    const node = document.getElementById('view-' + k);
-    if (node) node.classList.toggle('active', k === key);
-  });
+  const turn = ++navigation;
+  closeSelect();
+  if (mountedKey && mountedKey !== key) {
+    currentModule?.dispose?.();
+    // 页面内部状态保留在模块中，离页时释放隐藏的表格、选项及图表 DOM。
+    document.getElementById('view-' + mountedKey).replaceChildren();
+    currentModule = null;
+    mountedKey = '';
+  }
+  VALID.forEach((name) => document.getElementById('view-' + name)?.classList.toggle('active', name === key));
   document.querySelectorAll('.nav a').forEach((a) => {
     const selected = a.getAttribute('href') === '#/' + key;
     a.classList.toggle('active', selected);
@@ -55,24 +54,40 @@ function route() {
   });
   const container = document.getElementById('view-' + key);
   if (!container) return;
+  container.setAttribute('aria-busy', 'true');
   try {
-    PAGES[key](container);
-  } catch (err) {
-    container.innerHTML = `<div class="panel"><div class="empty">页面渲染出错：${String(err && err.message ? err.message : err)}</div></div>`;
+    const page = await PAGES[key]();
+    if (turn !== navigation) return;
+    page.render(container);
+    currentModule = page;
+    mountedKey = key;
+  } catch (error) {
+    if (turn !== navigation) return;
+    container.innerHTML = `<div class="panel"><div class="empty">页面打开失败：${esc(error?.message || error)}。请重新打开本页。</div></div>`;
+  } finally {
+    container.removeAttribute('aria-busy');
+    if (turn === navigation) {
+      window.scrollTo(0, 0);
+      if (!booted) { booted = true; window.dispatchEvent(new Event('dwt:ready')); }
+    }
   }
-  window.scrollTo(0, 0);
 }
 
 window.addEventListener('hashchange', route);
-window.addEventListener('storage', (e) => {
-  if (e.key !== STORAGE_KEY && e.key !== null) return;
+window.addEventListener('storage', (event) => {
+  if (event.key !== STORAGE_KEY && event.key !== null) return;
   store.load();
   const key = currentKey();
-  if (key === 'listening') refreshListening();
+  if (key === 'listening' && mountedKey === key) currentModule?.refresh?.();
   else if (key === 'stats' || key === 'home') route();
 });
-if (!location.hash) location.hash = '#/home';
-// 地址栏带 ?demo=1 时写入一次演示数据，便于冒烟与截图
-if (location.search.indexOf('demo=1') >= 0) seedDemo();
-route();
-window.dispatchEvent(new Event('dwt:ready'));
+async function boot() {
+  if (new URLSearchParams(location.search).get('demo') === '1') {
+    const { seedDemo } = await import('./demo.js');
+    seedDemo();
+  }
+  // 修改首个地址而不触发 hashchange，避免启动首页重复渲染。
+  if (!location.hash) history.replaceState(null, '', '#/home');
+  route();
+}
+boot();

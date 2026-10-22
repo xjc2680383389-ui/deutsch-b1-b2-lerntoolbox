@@ -1,5 +1,5 @@
 // 背卡页：间隔重复复习，支持翻面、三档评分、跨天复习（配合时间机器）
-import { store, nowTs, allDecks, cardsOfDeck, deckName, recordCardReview, addMistake } from './state.js';
+import { store, nowTs, allDecks, cardsOfDeck, deckName, recordCardReview } from './state.js';
 import { createState, schedule, buildReviewQueue, previewInterval, RATING, RATING_LABEL } from '../core/srs.js';
 import { deckOverview } from '../core/stats.js';
 import { esc, qs, qsa, toast } from './util.js';
@@ -34,8 +34,6 @@ function paint() {
   const decks = allDecks();
   const db = store.data;
   const deckId = session ? session.deckId : (db.settings.lastDeckId || 'b1');
-  const cards = cardsOfDeck(deckId);
-  const ov = deckOverview(cards, db.states, nowTs());
 
   if (finished) {
     rootEl.innerHTML = `
@@ -59,6 +57,7 @@ function paint() {
   }
 
   if (!session) {
+    const ov = deckOverview(cardsOfDeck(deckId), db.states, nowTs());
     rootEl.innerHTML = `
       <div class="page-head"><h1>背卡</h1><p>按间隔重复算法安排复习顺序：到期卡片优先，其次新卡。</p></div>
       <div class="panel">
@@ -168,20 +167,19 @@ function rate(rating) {
   const now = nowTs();
   const st = store.data.states[card.id] || createState(card.id);
   const next = schedule(st, rating, now);
-  store.update((db) => { db.states[card.id] = next; return db; });
-  recordCardReview(card, rating, rating > 0);
+  const mistake = rating === RATING.AGAIN ? {
+    source: 'card',
+    module: deckName(card.deckId),
+    refId: card.id,
+    stem: `${card.term}（${card.pos}）`,
+    userAnswer: '不会（没想起来）',
+    correctAnswer: card.zh,
+    explanation: `${card.example} —— ${card.exZh}`,
+  } : null;
+  if (!recordCardReview(card, rating, rating > 0, next, mistake)) return;
 
   if (rating === RATING.AGAIN) {
     session.againCount += 1;
-    addMistake({
-      source: 'card',
-      module: deckName(card.deckId),
-      refId: card.id,
-      stem: `${card.term}（${card.pos}）`,
-      userAnswer: '不会（没想起来）',
-      correctAnswer: card.zh,
-      explanation: `${card.example} —— ${card.exZh}`,
-    });
     // 本轮稍后再来：插到后面第 4 个位置
     session.queue.splice(session.idx, 1);
     const pos = Math.min(session.idx + 4, session.queue.length);

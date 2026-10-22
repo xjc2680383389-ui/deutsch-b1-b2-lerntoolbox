@@ -4,7 +4,6 @@ import { summarize, dueDistribution, deckOverview } from '../core/stats.js';
 import { barChart } from './charts.js';
 import { esc, fmtPercent, qsa } from './util.js';
 import { icon } from './icons.js';
-import { selectDeck } from './page_cards.js';
 
 function bookIllustration() {
   return `<svg class="hero-art" viewBox="0 0 300 220" fill="none" aria-hidden="true">
@@ -86,8 +85,13 @@ export function render(root) {
   `;
 
   qsa('[data-deck]', root).forEach((link) => {
-    link.addEventListener('click', () => {
+    link.addEventListener('click', async (event) => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      const { selectDeck } = await import('./page_cards.js');
+      if (!link.isConnected) return;
       selectDeck(link.getAttribute('data-deck'));
+      location.hash = '#/cards';
     });
   });
 }

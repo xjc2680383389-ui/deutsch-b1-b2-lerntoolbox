@@ -28,7 +28,36 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
-      - run: gradle -p android assembleDebug lintDebug --no-daemon
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: deutsch-android-preview-signing-v1
+      - run: gradle -p android assembleDebug lintDebug assembleDebugAndroidTest --no-daemon
+      - name: Verify APK signature
+        run: '"$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk'
+      - name: Enable emulator acceleration
+        run: |
+          sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            gradle -p android connectedDebugAndroidTest --no-daemon
+            mkdir -p android-ui-qa
+            adb pull /sdcard/Android/data/cn.deutsch.toolbox/files/ android-ui-qa/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-ui-qa
+          path: |
+            android-ui-qa/
+            android/app/build/reports/androidTests/
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: deutsch-assistant-android

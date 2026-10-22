@@ -47,26 +47,29 @@ function paint() {
 
       <div class="panel">
         <h2>自建卡组</h2>
-        <div class="row">
+        <div class="row deck-create">
           <div class="field" style="flex:1">
-            <label>新卡组名称</label>
+            <label for="new-deck-name">新卡组名称</label>
             <input id="new-deck-name" placeholder="例如：我的易错词">
           </div>
           <div class="field" style="width:120px">
-            <label>等级</label>
+            <label for="new-deck-level">等级</label>
             <select id="new-deck-level">
               <option value="B1">B1</option>
               <option value="B2">B2</option>
               <option value="自定义">自定义</option>
             </select>
           </div>
-          <button class="btn primary" id="add-deck" style="margin-top:18px">新建</button>
+          <button class="btn primary" id="add-deck">新建卡组</button>
         </div>
-        <div class="row">
-          <select id="deck-picker" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;min-width:200px">
+        <div class="deck-manage">
+          <div class="field">
+          <label for="deck-picker">管理已有卡组</label>
+          <select id="deck-picker">
             <option value="">选择一个卡组</option>
             ${decks.filter((d) => d.custom).map((d) => `<option value="${esc(d.id)}" ${d.id === activeDeck ? 'selected' : ''}>${esc(d.name)}（${esc(d.level)}）</option>`).join('')}
           </select>
+          </div>
           <button class="btn danger small" id="del-deck" ${activeDeck ? '' : 'disabled'}>删除该卡组</button>
         </div>
       </div>

@@ -12,6 +12,11 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebViewAssetLoader;
 import java.io.ByteArrayInputStream;
 
@@ -26,7 +31,12 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        FrameLayout safeContent = new FrameLayout(this);
+        safeContent.setId(R.id.safe_content);
+        safeContent.setBackgroundColor(Color.rgb(247, 248, 245));
         web = new WebView(this);
+        web.setId(R.id.study_webview);
         web.setBackgroundColor(Color.rgb(247, 248, 245));
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -62,18 +72,34 @@ public final class MainActivity extends Activity {
                 return true;
             }
         });
-        web.setOnApplyWindowInsetsListener((view, insets) -> {
-            view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
-                insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
-            return insets;
+        // Padding belongs to the container: WebView padding does not reliably constrain
+        // its scrolling HTML viewport. Forward zero insets so keyboard close also resets it.
+        final int handled = WindowInsetsCompat.Type.systemBars()
+            | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime();
+        ViewCompat.setOnApplyWindowInsetsListener(safeContent, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                | WindowInsetsCompat.Type.displayCutout());
+            Insets keyboard = insets.getInsets(WindowInsetsCompat.Type.ime());
+            view.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, keyboard.bottom));
+            return new WindowInsetsCompat.Builder(insets).setInsets(handled, Insets.NONE).build();
         });
-        setContentView(web);
+        safeContent.addView(web, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(safeContent);
+        WindowCompat.getInsetsController(getWindow(), safeContent).setAppearanceLightStatusBars(true);
+        WindowCompat.getInsetsController(getWindow(), safeContent).setAppearanceLightNavigationBars(true);
+        ViewCompat.requestApplyInsets(safeContent);
         web.loadUrl("https://" + HOST + "/assets/www/index.html");
     }
 
     @Override public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        if (web == null) { super.onBackPressed(); return; }
+        web.evaluateJavascript("(() => { const dialog = document.querySelector('dialog[open]');"
+            + "if (dialog) { dialog.close(); return true; } return false; })()", closed -> {
+                if ("true".equals(closed)) return;
+                if (web.canGoBack()) web.goBack();
+                else MainActivity.super.onBackPressed();
+            });
     }
     @Override protected void onPause() { web.onPause(); super.onPause(); }
     @Override protected void onResume() { super.onResume(); if (web != null) web.onResume(); }

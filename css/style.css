@@ -356,3 +356,33 @@ th { color: var(--muted); font-weight: 500; font-size: 11px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* 创建与管理分开排版，窄屏也保留明确的触控间距。 */
+.deck-create { align-items: flex-end; }
+.deck-create #add-deck { margin-bottom: 14px; }
+.deck-manage { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.deck-manage .field { margin-bottom: 14px; }
+.select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 44px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fcfdfb; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.select-trigger > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.select-trigger:disabled { opacity: .5; cursor: not-allowed; }
+.select-chevron { flex: none; width: 7px; height: 7px; border-right: 1.5px solid #7b8e7c; border-bottom: 1.5px solid #7b8e7c; transform: rotate(45deg); margin: -4px 4px 0; }
+.select-sheet { width: min(480px, calc(100% - 32px)); max-height: 80vh; max-height: 80svh; box-sizing: border-box; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--panel); color: var(--ink); box-shadow: 0 16px 48px #233c3624; }
+.select-sheet::backdrop { background: #213d3447; }
+.select-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.select-sheet-head h2 { margin: 0; font-size: 17px; }
+.select-close { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: #f1f5ee; color: #5f7969; cursor: pointer; font-size: 26px; line-height: 1; }
+.select-options { display: flex; flex-direction: column; gap: 8px; max-height: 55vh; max-height: 55svh; overflow-y: auto; overscroll-behavior: contain; }
+.select-option { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex: none; width: 100%; min-height: 56px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; font: 14px/1.6 "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; overflow-wrap: anywhere; }
+.select-option[aria-selected=true] { background: var(--primary-soft); border-color: #96b59e; color: var(--primary); }
+.select-tick { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border: 1px solid #cbd9c9; border-radius: 50%; font-size: 12px; }
+.select-option[aria-selected=true] .select-tick { border-color: var(--primary); background: var(--primary); color: #fff; }
+.select-option:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 600px) {
+  .deck-create #add-deck { margin: 2px 0 0; }
+  .deck-manage { margin-top: 24px; }
+  .select-sheet { margin: auto auto 0; width: 100%; max-width: 100%; padding: 20px 18px max(22px, env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; box-shadow: none; }
+  .select-option { font-size: 14px; }
+  .view.active { animation: none; }
+  .panel, .stat, .topic-card, .mistake, .card-box { box-shadow: none; }
+  .card-box { background: #fff; }
+}
