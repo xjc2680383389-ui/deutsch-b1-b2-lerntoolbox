@@ -41,7 +41,7 @@
 .launch-enter:focus-visible { outline: 3px solid #79a993; outline-offset: 5px; }
 .launch-footer { position: relative; margin-top: 28px; color: #70856f; font-size: 10px; letter-spacing: 2px; }
 .launch-footer p { margin: 8px 0 0; }
-.launch-leaf { display: inline-block; width: 12px; height: 18px; background: #d9b363; border-radius: 100% 0 100% 0; transform: rotate(18deg); }
+.launch-flag { display: inline-block; width: 24px; height: 15px; background: linear-gradient(to bottom, #202020 0 33.333%, #dd2027 33.333% 66.666%, #edb72a 66.666% 100%); border-radius: 3px; }
 .brand-mark.brand-image { display: block; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 26%; }
 .splash-body { margin: 0; background: #f7f8f5; }
 .splash-page { position: relative; min-height: 100vh; min-height: 100svh; }

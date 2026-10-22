@@ -46,7 +46,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            gradle -p android connectedDebugAndroidTest --no-daemon
+            gradle -p android connectedDebugAndroidTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon
             mkdir -p android-ui-qa
             adb pull /sdcard/Android/data/cn.deutsch.toolbox/files/ android-ui-qa/
       - uses: actions/upload-artifact@v4

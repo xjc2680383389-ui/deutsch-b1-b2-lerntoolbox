@@ -2,6 +2,8 @@ package cn.deutsch.toolbox;
 
 import android.app.Instrumentation;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.view.View;
 import android.webkit.WebView;
@@ -65,11 +67,28 @@ public class MobileLayoutTest {
         try (FileOutputStream output = new FileOutputStream(file)) { bitmap.compress(Bitmap.CompressFormat.PNG,100,output); }
         bitmap.recycle();
     }
+    private void launcherIcon() throws Exception {
+        Bitmap icon = Bitmap.createBitmap(300,300,Bitmap.Config.ARGB_8888);
+        instrumentation.runOnMainSync(() -> {
+            Drawable drawable = activity.getApplicationInfo().loadIcon(activity.getPackageManager());
+            drawable.setBounds(0,0,300,300);
+            drawable.draw(new Canvas(icon));
+        });
+        try (FileOutputStream output = new FileOutputStream(new File(activity.getExternalFilesDir(null), "qa-launcher-icon.png"))) {
+            icon.compress(Bitmap.CompressFormat.PNG,100,output);
+        }
+        icon.recycle();
+    }
     @Test public void safeAreaSpacingAndThemedSelect() throws Exception {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(value -> activity = value);
             waitFor("document.querySelector('#view-home h1') && document.getElementById('launch-screen').hidden");
-            safeBounds(); screenshot("qa-home");
+            safeBounds(); screenshot("qa-home"); launcherIcon();
+            js("location.href='splash.html'");
+            waitFor("document.querySelector('.splash-page .launch-icon')?.complete");
+            safeBounds(); screenshot("qa-splash");
+            js("location.href='index.html'");
+            waitFor("document.querySelector('#view-home h1') && document.getElementById('launch-screen').hidden");
             js("location.hash='#/data'");
             waitFor("document.querySelector('[data-select-for=deck-picker]')");
             JSONObject spacing = new JSONObject(js("(() => { const create=document.getElementById('add-deck').getBoundingClientRect(); const manage=document.querySelector('.deck-manage').getBoundingClientRect(); return {gap:manage.top-create.bottom, overflow:document.documentElement.scrollWidth>innerWidth}; })()"));
