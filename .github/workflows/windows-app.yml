@@ -56,6 +56,17 @@ jobs:
           & $compiler desktop/windows/installer.iss
           if ($LASTEXITCODE -ne 0) { throw 'Installer build failed' }
           Compress-Archive -Path desktop/windows/bin/Release/net48/* -DestinationPath dist/Deutsch-Assistant-Windows-Portable.zip
+      - name: Record package hashes and signatures
+        shell: pwsh
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $hashes = Get-ChildItem dist -File | Get-FileHash -Algorithm SHA256
+          $hashes | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content dist/SHA256SUMS.txt -Encoding utf8
+          $signatures = Get-AuthenticodeSignature dist/Deutsch-Assistant-Windows-Setup.exe,desktop/windows/bin/Release/net48/DeutschAssistant.exe |
+            ForEach-Object { @{ file = Split-Path $_.Path -Leaf; status = $_.Status.ToString() } }
+          @{ version = '1.0.4'; sourceCommit = $env:SOURCE_COMMIT; buildCommit = (git rev-parse HEAD); runner = [Environment]::OSVersion.VersionString; signatures = @($signatures); malwareScan = 'Not performed'; clientWindows10And11 = 'Not verified' } |
+            ConvertTo-Json -Depth 4 | Set-Content dist/provenance.json -Encoding utf8
       - name: Install and verify the actual Windows application
         shell: pwsh
         run: |
@@ -63,19 +74,38 @@ jobs:
           $qa = "$env:RUNNER_TEMP/windows-qa"
           New-Item -ItemType Directory -Force $qa | Out-Null
           $installer = (Resolve-Path 'dist/Deutsch-Assistant-Windows-Setup.exe').Path
-          $setup = Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installed") -PassThru -Wait
-          if ($setup.ExitCode -ne 0) { throw 'Installer failed' }
           $exe = "$installed/DeutschAssistant.exe"
-          foreach ($mode in @('first','reopen')) {
+          function Install-App {
+            $setup = Start-Process $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installed") -WindowStyle Hidden -PassThru -Wait
+            if ($setup.ExitCode -ne 0) { throw 'Installer failed' }
+          }
+          function Test-App($name, $verify) {
             $arguments = @("--self-test=$qa")
-            if ($mode -eq 'reopen') { $arguments += '--verify-persistence' }
+            if ($verify) { $arguments += '--verify-persistence' }
             $process = Start-Process $exe -ArgumentList $arguments -PassThru
             if (-not $process.WaitForExit(180000)) { $process.Kill(); throw 'Windows smoke test timeout' }
             if ($process.ExitCode -ne 0) { Get-Content "$qa/failure.txt"; throw 'Windows smoke test failed' }
+            $report = if ($verify) { 'report-reopen.json' } else { 'report-first.json' }
+            Copy-Item "$qa/$report" "$qa/report-$name.json" -Force
           }
-          $uninstall = Start-Process "$installed/unins000.exe" '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -PassThru -Wait
-          if ($uninstall.ExitCode -ne 0) { throw 'Uninstall failed' }
-          if (-not (Test-Path "$qa/profile")) { throw 'Uninstall removed profile data' }
+          function Uninstall-App {
+            $uninstall = Start-Process "$installed/unins000.exe" '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -WindowStyle Hidden -PassThru -Wait
+            if ($uninstall.ExitCode -ne 0) { throw 'Uninstall failed' }
+            if (Test-Path $exe) { throw 'Uninstall retained the application executable' }
+            $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) '德语学习助手/德语学习助手.lnk'
+            if (Test-Path $shortcut) { throw 'Uninstall retained the start menu shortcut' }
+            if (Test-Path 'HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall/DeutschAssistant.Desktop_is1') { throw 'Uninstall retained the registration' }
+            if (-not (Test-Path "$qa/profile")) { throw 'Uninstall removed profile data' }
+          }
+          Install-App
+          Test-App 'first' $false
+          Test-App 'reopen' $true
+          Install-App
+          Test-App 'overwrite' $true
+          Uninstall-App
+          Install-App
+          Test-App 'reinstall' $true
+          Uninstall-App
           Copy-Item -Recurse $qa windows-qa
       - uses: actions/upload-artifact@v4
         if: always()

@@ -31,6 +31,8 @@ namespace DeutschAssistant
             {
                 check((bool)await app.Value("JSON.parse(localStorage.getItem('dwt.db.v1')).settings.dailyGoal===47"),"Learning settings survive process restart");
                 check((bool)await app.Value("JSON.parse(localStorage.getItem('dwt.db.v1')).userDecks.some(d=>d.name==='Windows 验收卡组')"),"Custom decks survive process restart");
+                string actual=(string)await app.AsyncValue("const {store}=await import('/js/ui/state.js');return store.exportJson();");
+                check(actual==File.ReadAllText(Path.Combine(directory,"expected-profile.json")),"All learning fields survive reopen, reinstall or upgrade");
             }
             else
             {
@@ -50,7 +52,7 @@ namespace DeutschAssistant
                 app.ToggleFullscreen();
                 check(app.TitleBar.Visible && app.WindowState==FormWindowState.Normal,"Fullscreen restores the normal window");
                 await NativeChromeSmoke.Check(app,directory,"restored",check);
-                await app.AsyncValue("const {store}=await import('/js/ui/state.js');store.update(db=>{db.settings.dailyGoal=47;db.userDecks.push({id:'windows-qa',name:'Windows 验收卡组',level:'B1'});return db;});return store.lastSaveOk;");
+                await app.AsyncValue("const {store}=await import('/js/ui/state.js');const {createState}=await import('/js/core/srs.js');const {makeMistake}=await import('/js/core/mistakes.js');store.update(db=>{db.settings.dailyGoal=47;db.userDecks.push({id:'windows-qa',name:'Windows 验收卡组',level:'B1'});db.customCards['windows-qa:Test']={id:'windows-qa:Test',deckId:'windows-qa',term:'Test',zh:'验收词条'};db.states['windows-qa:Test']=createState('windows-qa:Test');db.events.push({ts:42,type:'quiz',correct:true,topic:'qa'});db.mistakes.push(makeMistake({source:'card',refId:'windows-qa:Test',stem:'Test',correctAnswer:'验收词条',ts:42}));db.quizStats.qa={attempts:3,correct:2};db.listeningStats.l01={plays:4,best:100};return db;});return store.lastSaveOk;");
                 string backup=Path.Combine(directory,"learning-backup.json");
                 await app.ExportBackup(backup);
                 check(File.Exists(backup) && File.ReadAllText(backup).Contains("Windows 验收卡组"),"Native JSON export includes learning data");
@@ -60,11 +62,14 @@ namespace DeutschAssistant
                 check((bool)await app.Value("JSON.parse(localStorage.getItem('dwt.db.v1')).settings.dailyGoal===47"),"Native JSON import restores learning data");
                 string original=(string)await app.Value("localStorage.getItem('dwt.db.v1')");
                 string invalid=Path.Combine(directory,"invalid-backup.json");
-                File.WriteAllText(invalid,"{invalid");
-                bool rejected=false;
-                try { await app.ImportBackup(invalid); } catch { rejected=true; }
-                check(rejected,"Invalid backup is rejected");
-                check(original==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Rejected backup preserves existing data");
+                foreach(string sample in new[]{"{invalid","{}","null","[]","{\"version\":1,\"settings\":{},\"states\":null,\"userDecks\":null,\"events\":null}",File.ReadAllText(backup).Replace("\"version\": 1","\"version\": 99")})
+                {
+                    File.WriteAllText(invalid,sample);
+                    bool rejected=false;
+                    try { await app.ImportBackup(invalid); } catch { rejected=true; }
+                    check(rejected,"Invalid backup syntax, shape or version is rejected");
+                    check(original==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Rejected backup preserves all existing data");
+                }
                 foreach(string page in new[]{"home","cards","grammar","listening","mistakes","stats","data"})
                 {
                     await app.Web.ExecuteScriptAsync("location.hash='#/"+page+"'");
@@ -72,6 +77,16 @@ namespace DeutschAssistant
                     check((bool)await app.Value("document.querySelector('#view-"+page+" h1').getBoundingClientRect().height>0"),page+" route renders visibly");
                     await NativeChromeSmoke.Check(app,directory,page,check);
                     if(page=="listening") await ListeningSmoke.Run(app,directory,check);
+                    if(page=="data")
+                    {
+                        await app.Web.ExecuteScriptAsync("document.querySelector('#before-import-btn').click()");
+                        check((bool)await app.Value("JSON.parse(document.querySelector('#json-box').value).settings.dailyGoal===1"),"Pre-import backup is available from the data page");
+                        string current=(string)await app.Value("localStorage.getItem('dwt.db.v1')");
+                        await app.Web.ExecuteScriptAsync("window.__savedConfirm=window.confirm;window.confirm=()=>false;document.querySelector('#json-box').value='{}';document.querySelector('#import-btn').click();window.confirm=window.__savedConfirm");
+                        check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Cancelling the page import preserves the full database");
+                        await app.Web.ExecuteScriptAsync("window.confirm=()=>true;document.querySelector('#import-btn').click();window.confirm=window.__savedConfirm;delete window.__savedConfirm");
+                        check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Page import rejects an empty JSON object without losing data");
+                    }
                     if(page=="home" || page=="data")
                     {
                         await Task.Delay(500);
@@ -107,8 +122,9 @@ namespace DeutschAssistant
                 for(int i=0;i<30 && !blocked;i++) await Task.Delay(100);
                 app.Web.CoreWebView2.NavigationStarting-=denied;
                 check(blocked && app.Web.Source.AbsoluteUri==url,"External navigation is cancelled");
+                await app.ExportBackup(Path.Combine(directory,"expected-profile.json"));
             }
-            File.WriteAllText(Path.Combine(directory,reopen?"report-reopen.json":"report-first.json"),app.Json.Serialize(new { passed=true,checks=passed,runtime=app.Web.CoreWebView2.Environment.BrowserVersionString }));
+            File.WriteAllText(Path.Combine(directory,reopen?"report-reopen.json":"report-first.json"),app.Json.Serialize(new { passed=true,checks=passed,runtime=app.Web.CoreWebView2.Environment.BrowserVersionString,os=Environment.OSVersion.VersionString,processRestartOnly=true }));
         }
     }
 }

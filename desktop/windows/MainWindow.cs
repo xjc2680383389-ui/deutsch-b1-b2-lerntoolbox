@@ -140,11 +140,7 @@ namespace DeutschAssistant
         {
             if(new FileInfo(path).Length>10*1024*1024) throw new IOException("备份超过 10 MB，请确认选中了学习备份文件。");
             string text=File.ReadAllText(path,Encoding.UTF8);
-            var backup=Json.DeserializeObject(text) as Dictionary<string,object>;
-            if(backup==null || !backup.ContainsKey("version") || Convert.ToInt32(backup["version"])!=1
-                || !backup.ContainsKey("settings") || !(backup["settings"] is Dictionary<string,object>)
-                || !backup.ContainsKey("states") || !backup.ContainsKey("userDecks") || !backup.ContainsKey("events"))
-                throw new InvalidDataException("此文件不是德语学习助手的完整备份，现有学习记录未修改。");
+            // 原生文件入口与页面文本入口共用版本、结构、类型和导入前快照保护。
             var result=(Dictionary<string,object>)await AsyncValue("const {store}=await import('/js/ui/state.js');return store.importJson("+Json.Serialize(text)+");");
             if(!(bool)result["ok"]) throw new InvalidDataException("导入失败："+result["error"]);
             var loaded=new TaskCompletionSource<bool>();
@@ -175,7 +171,7 @@ namespace DeutschAssistant
             {
                 if(Web.CoreWebView2==null) return;
                 using(var dialog=new OpenFileDialog { Filter="学习备份 (*.json;*.txt)|*.json;*.txt|所有文件 (*.*)|*.*" })
-                    if(dialog.ShowDialog(this)==DialogResult.OK && MessageBox.Show(this,"导入会替换此电脑的学习记录，建议先导出当前备份。继续导入吗？",Text,MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes)
+                    if(dialog.ShowDialog(this)==DialogResult.OK && MessageBox.Show(this,"导入会替换此电脑的全部学习记录，不合并进度。将保留最近一次导入前备份，可在数据管理页面导出。继续导入吗？",Text,MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes)
                     { await ImportBackup(dialog.FileName); MessageBox.Show(this,"学习备份已导入。",Text); }
             }
             catch(Exception error) { ShowError(error); }
