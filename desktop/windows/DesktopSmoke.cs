@@ -25,6 +25,8 @@ namespace DeutschAssistant
             check(!MainWindow.IsLocal("https://deutsch-assistant.example.evil/"),"Lookalike host is rejected");
             check(!MainWindow.IsLocal("http://deutsch-assistant.example/"),"HTTP is rejected");
             check(!MainWindow.IsLocal("file:///C:/Windows/win.ini"),"File navigation is rejected");
+            NativeChromeSmoke.TryRestoreSystemCaption(app);
+            await NativeChromeSmoke.Check(app,directory,reopen?"reopen":"normal",check);
             if(reopen)
             {
                 check((bool)await app.Value("JSON.parse(localStorage.getItem('dwt.db.v1')).settings.dailyGoal===47"),"Learning settings survive process restart");
@@ -37,6 +39,7 @@ namespace DeutschAssistant
                 check(app.WindowState==FormWindowState.Maximized,"Custom maximize button works");
                 var work=Screen.FromControl(app).WorkingArea;
                 check(app.Bounds.Bottom<=work.Bottom+2 && app.Bounds.Top>=work.Top-2,"Maximized window respects taskbar working area");
+                await NativeChromeSmoke.Check(app,directory,"maximized",check);
                 app.MaximizeButton.PerformClick();
                 check(app.WindowState==FormWindowState.Normal,"Custom restore button works");
                 app.MinimizeButton.PerformClick();
@@ -46,6 +49,7 @@ namespace DeutschAssistant
                 check(!app.TitleBar.Visible,"Fullscreen hides the custom header");
                 app.ToggleFullscreen();
                 check(app.TitleBar.Visible && app.WindowState==FormWindowState.Normal,"Fullscreen restores the normal window");
+                await NativeChromeSmoke.Check(app,directory,"restored",check);
                 await app.AsyncValue("const {store}=await import('/js/ui/state.js');store.update(db=>{db.settings.dailyGoal=47;db.userDecks.push({id:'windows-qa',name:'Windows 验收卡组',level:'B1'});return db;});return store.lastSaveOk;");
                 string backup=Path.Combine(directory,"learning-backup.json");
                 await app.ExportBackup(backup);
@@ -66,6 +70,7 @@ namespace DeutschAssistant
                     await app.Web.ExecuteScriptAsync("location.hash='#/"+page+"'");
                     await app.WaitFor("document.querySelector('#view-"+page+".active h1') && !document.querySelector('#view-"+page+"[aria-busy]')");
                     check((bool)await app.Value("document.querySelector('#view-"+page+" h1').getBoundingClientRect().height>0"),page+" route renders visibly");
+                    await NativeChromeSmoke.Check(app,directory,page,check);
                     if(page=="home" || page=="data")
                     {
                         await Task.Delay(500);

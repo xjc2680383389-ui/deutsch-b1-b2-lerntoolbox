@@ -8,7 +8,7 @@
     <AssemblyName>DeutschAssistant</AssemblyName>
     <RootNamespace>DeutschAssistant</RootNamespace>
     <Product>德语学习助手</Product>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

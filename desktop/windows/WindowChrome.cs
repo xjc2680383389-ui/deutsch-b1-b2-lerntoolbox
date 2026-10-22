@@ -12,6 +12,8 @@ namespace DeutschAssistant
         internal Button MaximizeButton { get; private set; }
         internal Button CloseButton { get; private set; }
         private const int WM_NCHITTEST=0x84,WM_NCCALCSIZE=0x83,WM_GETMINMAXINFO=0x24;
+        private const int WM_NCPAINT=0x85,WM_NCACTIVATE=0x86,WM_STYLECHANGING=0x7C,WS_CAPTION=0x00C00000;
+        [StructLayout(LayoutKind.Sequential)] private struct StyleChange { public uint Old,New; }
         [DllImport("user32.dll")] private static extern bool ReleaseCapture();
         [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam);
         [DllImport("dwmapi.dll")] private static extern int DwmSetWindowAttribute(IntPtr window,int attribute,ref int value,int size);
@@ -47,7 +49,7 @@ namespace DeutschAssistant
             {
                 var parameters=base.CreateParams;
                 // Retain native resizing, taskbar and system keyboard window actions.
-                parameters.Style|=0x00040000|0x00080000|0x00010000|0x00020000;
+                parameters.Style=(parameters.Style & ~WS_CAPTION)|0x00040000|0x00080000|0x00010000|0x00020000;
                 return parameters;
             }
         }
@@ -94,7 +96,27 @@ namespace DeutschAssistant
         }
         protected override void WndProc(ref Message message)
         {
-            if(message.Msg==WM_NCCALCSIZE && message.WParam!=IntPtr.Zero)
+            // Native activation/frame repaints must never paint over the client-drawn header.
+            // WM_NCACTIVATE still reaches the default procedure, with its documented
+            // no-repaint flag, so focus and taskbar activation keep working.
+            if(message.Msg==WM_NCACTIVATE)
+            {
+                message.LParam=new IntPtr(-1);
+                base.WndProc(ref message); return;
+            }
+            if(message.Msg==WM_NCPAINT)
+            {
+                message.Result=IntPtr.Zero; return;
+            }
+            if(message.Msg==WM_STYLECHANGING && message.WParam.ToInt64()==-16)
+            {
+                base.WndProc(ref message);
+                var change=(StyleChange)Marshal.PtrToStructure(message.LParam,typeof(StyleChange));
+                change.New &= unchecked((uint)~WS_CAPTION);
+                Marshal.StructureToPtr(change,message.LParam,false);
+                message.Result=IntPtr.Zero; return;
+            }
+            if(message.Msg==WM_NCCALCSIZE)
             {
                 message.Result=IntPtr.Zero; return;
             }
