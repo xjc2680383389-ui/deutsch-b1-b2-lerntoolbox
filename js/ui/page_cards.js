@@ -9,6 +9,17 @@ let session = null; // {deckId, queue, idx, flipped, planned, done, againCount}
 let limit = 20;
 let finished = null; // 本轮结束汇总
 
+// 从首页选择卡组时，切换到对应卡组，避免沿用另一卡组的复习或完成页。
+export function selectDeck(deckId) {
+  if (!allDecks().some((deck) => deck.id === deckId)) return;
+  const previousDeck = session ? session.deckId : store.data.settings.lastDeckId;
+  if (previousDeck !== deckId) {
+    session = null;
+    finished = null;
+  }
+  store.update((db) => { db.settings.lastDeckId = deckId; return db; });
+}
+
 export function render(root) {
   rootEl = root;
   // 演示模式（?demo=1）下直接进入一轮复习，便于冒烟与截图

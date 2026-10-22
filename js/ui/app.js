@@ -8,6 +8,15 @@ import { render as renderMistakes } from './page_mistakes.js';
 import { render as renderStats } from './page_stats.js';
 import { render as renderData } from './page_data.js';
 import { seedDemo } from './demo.js';
+import { icon } from './icons.js';
+
+document.querySelectorAll('.nav a[data-icon]').forEach((a) => {
+  a.insertAdjacentHTML('afterbegin', icon(a.dataset.icon));
+});
+document.querySelector('.skip-link').addEventListener('click', (event) => {
+  event.preventDefault();
+  document.getElementById('workspace').focus();
+});
 
 const PAGES = {
   home: renderHome,
@@ -36,7 +45,13 @@ function route() {
     if (node) node.classList.toggle('active', k === key);
   });
   document.querySelectorAll('.nav a').forEach((a) => {
-    a.classList.toggle('active', (a.getAttribute('href') || '').indexOf('#/' + key) >= 0);
+    const selected = a.getAttribute('href') === '#/' + key;
+    a.classList.toggle('active', selected);
+    if (selected) {
+      a.setAttribute('aria-current', 'page');
+      document.getElementById('workspace-title').textContent = a.textContent;
+      document.title = a.textContent + ' · 德语学习助手';
+    } else a.removeAttribute('aria-current');
   });
   const container = document.getElementById('view-' + key);
   if (!container) return;

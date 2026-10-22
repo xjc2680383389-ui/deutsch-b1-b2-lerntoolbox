@@ -3,29 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>德语 B1/B2 学习工具箱</title>
+  <meta name="theme-color" content="#176b58">
+  <title>德语学习助手 · B1/B2 学习工具箱</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="topbar">
+  <a class="skip-link" href="#workspace">跳转到学习内容</a>
+  <aside class="topbar" aria-label="学习导航">
     <div class="topbar-inner">
-      <div class="brand">
-        德语 B1/B2 学习工具箱
-        <small>单词 SRS · 语法专题 · 听力精听 · 错题本 · 学习统计</small>
-      </div>
-      <nav class="nav">
-        <a href="#/home">首页</a>
-        <a href="#/cards">背卡</a>
-        <a href="#/grammar">语法练习</a>
-        <a href="#/listening">听力精听</a>
-        <a href="#/mistakes">错题本</a>
-        <a href="#/stats">学习统计</a>
-        <a href="#/data">数据管理</a>
+      <a class="brand" href="#/home" aria-label="德语学习助手首页">
+        <span class="brand-mark" aria-hidden="true">D<span>·</span></span>
+        <span>德语学习助手<small>B1 / B2 学习工具箱</small></span>
+      </a>
+      <div class="nav-label">我的学习空间</div>
+      <nav class="nav" aria-label="主导航">
+        <a href="#/home" data-icon="home">今日概览</a>
+        <a href="#/cards" data-icon="cards">单词背卡</a>
+        <a href="#/grammar" data-icon="grammar">语法练习</a>
+        <a href="#/listening" data-icon="listening">听力精听</a>
+        <a href="#/mistakes" data-icon="mistakes">错题本</a>
+        <a href="#/stats" data-icon="stats">学习统计</a>
+        <a href="#/data" data-icon="data">数据管理</a>
       </nav>
+      <div class="sidebar-note"><span class="note-sprout" aria-hidden="true">✳</span><strong>按自己的节奏，慢慢来。</strong><p>每一次练习，都是积累。</p></div>
+      <div class="local-note"><i aria-hidden="true"></i> 离线可用 · 数据保存在本机</div>
     </div>
-  </header>
+  </aside>
 
-  <main class="container">
+  <div class="workspace-bar"><span>我的学习空间 <span aria-hidden="true">/</span> <strong id="workspace-title">今日概览</strong></span><span class="workspace-meta">B1 <span aria-hidden="true">→</span> B2 <i></i> 日积月累，学有所获</span></div>
+  <main class="container" id="workspace" tabindex="-1">
     <section id="view-home" class="view"></section>
     <section id="view-cards" class="view"></section>
     <section id="view-grammar" class="view"></section>
