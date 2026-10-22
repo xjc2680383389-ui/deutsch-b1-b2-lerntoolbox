@@ -12,7 +12,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace DeutschAssistant
 {
-    internal sealed class MainWindow : Form
+    internal sealed partial class MainWindow : Form
     {
         internal const string Origin = "https://deutsch-assistant.example";
         internal readonly WebView2 Web = new WebView2();
@@ -20,8 +20,6 @@ namespace DeutschAssistant
         private readonly string profile,qa;
         private readonly bool verify;
         private readonly Label loading;
-        private readonly MenuStrip menu;
-        private FormBorderStyle savedBorder;
         private FormWindowState savedState;
         private Rectangle savedBounds;
         private bool fullscreen;
@@ -33,28 +31,10 @@ namespace DeutschAssistant
             Text="德语学习助手";
             StartPosition=FormStartPosition.CenterScreen;
             Size=new Size(1280,860); MinimumSize=new Size(760,600);
-            AutoScaleMode=AutoScaleMode.Dpi; BackColor=Color.FromArgb(247,248,245);
+            AutoScaleDimensions=new SizeF(96F,96F); AutoScaleMode=AutoScaleMode.Dpi; BackColor=Color.FromArgb(247,248,245);
             string icon=Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"app.ico");
             if(File.Exists(icon)) Icon=new Icon(icon);
-            menu=new MenuStrip { BackColor=Color.FromArgb(247,248,245),Font=new Font("Microsoft YaHei UI",9F) };
-            var file=new ToolStripMenuItem("文件(&F)");
-            file.DropDownItems.Add(Item("导出学习备份…",Keys.Control|Keys.S,ExportDialog));
-            file.DropDownItems.Add(Item("导入学习备份…",Keys.Control|Keys.O,ImportDialog));
-            file.DropDownItems.Add(new ToolStripSeparator());
-            file.DropDownItems.Add(Item("退出",Keys.Alt|Keys.F4,()=>Close()));
-            var view=new ToolStripMenuItem("视图(&V)");
-            view.DropDownItems.Add(Item("回到首页",Keys.Control|Keys.Home,()=>Navigate("home")));
-            view.DropDownItems.Add(Item("返回",Keys.Alt|Keys.Left,()=> { if(Web.CoreWebView2?.CanGoBack==true) Web.CoreWebView2.GoBack(); }));
-            view.DropDownItems.Add(new ToolStripSeparator());
-            view.DropDownItems.Add(Item("放大",Keys.Control|Keys.Oemplus,()=>Zoom(.1)));
-            view.DropDownItems.Add(Item("缩小",Keys.Control|Keys.OemMinus,()=>Zoom(-.1)));
-            view.DropDownItems.Add(Item("实际大小",Keys.Control|Keys.D0,()=>Web.ZoomFactor=1));
-            view.DropDownItems.Add(Item("全屏",Keys.F11,ToggleFullscreen));
-            var help=new ToolStripMenuItem("帮助(&H)");
-            help.DropDownItems.Add(Item("关于德语学习助手",Keys.None,()=>MessageBox.Show(this,
-                "德语学习助手 · Windows 1.0.0\n\nB1 / B2 单词、语法、听力与复习统计。\n学习数据保存在此电脑，可用文件菜单导入、导出备份。\n\n一点积累，一点进步。","关于",MessageBoxButtons.OK,MessageBoxIcon.Information)));
-            menu.Items.AddRange(new ToolStripItem[]{file,view,help});
-            MainMenuStrip=menu;
+            InitializeChrome();
             loading=new Label { Text="正在准备你的学习空间…",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Microsoft YaHei UI",13F),ForeColor=Color.FromArgb(23,107,88) };
             Web.Dock=DockStyle.Fill; Web.Visible=false;
             var content=new Panel { Dock=DockStyle.Fill,Margin=Padding.Empty };
@@ -62,16 +42,10 @@ namespace DeutschAssistant
             var layout=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Margin=Padding.Empty,Padding=Padding.Empty };
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-            menu.Dock=DockStyle.Fill; menu.Margin=Padding.Empty;
-            layout.Controls.Add(menu,0,0); layout.Controls.Add(content,0,1); Controls.Add(layout);
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+            layout.Controls.Add(TitleBar,0,0); layout.Controls.Add(content,0,1); Controls.Add(layout);
             Shown+=async (s,e)=>await StartAsync();
             FormClosed+=(s,e)=>Web.Dispose();
-        }
-        private ToolStripMenuItem Item(string text,Keys shortcut,Action action)
-        {
-            var item=new ToolStripMenuItem(text) { ShortcutKeys=shortcut };
-            item.Click+=(s,e)=> { try { action(); } catch(Exception error) { ShowError(error); } };
-            return item;
         }
         private async Task StartAsync()
         {
@@ -83,6 +57,14 @@ namespace DeutschAssistant
                 var environment=await CoreWebView2Environment.CreateAsync(null,profile);
                 await Web.EnsureCoreWebView2Async(environment);
                 var core=Web.CoreWebView2;
+                Web.CoreWebView2Controller.AcceleratorKeyPressed+=(s,e)=> {
+                    if(e.KeyEventKind!=CoreWebView2KeyEventKind.KeyDown && e.KeyEventKind!=CoreWebView2KeyEventKind.SystemKeyDown) return;
+                    Keys keys=(Keys)e.VirtualKey|Control.ModifierKeys;
+                    if(!IsDesktopShortcut(keys)) return;
+                    e.Handled=true;
+                    // WebView2 blocks synchronous COM calls during this event.
+                    BeginInvoke(new Action(()=>RunDesktopShortcut(keys)));
+                };
                 core.SetVirtualHostNameToFolderMapping("deutsch-assistant.example",assets,CoreWebView2HostResourceAccessKind.Deny);
                 core.Settings.AreDevToolsEnabled=false;
                 core.Settings.IsStatusBarEnabled=false;
@@ -106,7 +88,7 @@ namespace DeutschAssistant
                 if(qa!=null)
                 {
                     await DesktopSmoke.Run(this,qa,verify);
-                    Close();
+                    CloseButton.PerformClick();
                 }
             }
             catch(Exception error)
@@ -211,15 +193,20 @@ namespace DeutschAssistant
             catch(Exception error) { ShowError(error); }
         }
         private void Zoom(double amount) { if(Web.CoreWebView2!=null) Web.ZoomFactor=Math.Max(.7,Math.Min(1.8,Web.ZoomFactor+amount)); }
-        private void ToggleFullscreen()
+        internal void ToggleFullscreen()
         {
             if(!fullscreen)
             {
-                savedBounds=Bounds; savedState=WindowState; savedBorder=FormBorderStyle;
-                WindowState=FormWindowState.Normal; FormBorderStyle=FormBorderStyle.None; WindowState=FormWindowState.Maximized;
+                savedBounds=Bounds; savedState=WindowState;
+                fullscreen=true; TitleBar.Visible=false; Padding=Padding.Empty;
+                WindowState=FormWindowState.Normal; WindowState=FormWindowState.Maximized;
             }
-            else { WindowState=FormWindowState.Normal; FormBorderStyle=savedBorder; Bounds=savedBounds; WindowState=savedState; }
-            fullscreen=!fullscreen;
+            else
+            {
+                fullscreen=false; WindowState=FormWindowState.Normal;
+                TitleBar.Visible=true; Bounds=savedBounds; WindowState=savedState;
+                UpdateChromeState();
+            }
         }
         private void ShowError(Exception error) => MessageBox.Show(this,error.Message,Text,MessageBoxButtons.OK,MessageBoxIcon.Warning);
     }

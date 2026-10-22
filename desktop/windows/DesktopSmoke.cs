@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Drawing;
+using System.Windows.Forms;
 using System.Threading.Tasks;
 using Microsoft.Web.WebView2.Core;
 
@@ -14,6 +16,11 @@ namespace DeutschAssistant
             Directory.CreateDirectory(directory);
             var passed=new List<string>();
             Action<bool,string> check=(ok,name)=> { if(!ok) throw new Exception(name); passed.Add(name); };
+            check(app.FormBorderStyle==FormBorderStyle.None,"System caption and blue frame are removed");
+            check(app.MainMenuStrip==null,"File View Help menu bar is removed");
+            check(app.TitleBar.Visible && app.MinimizeButton.Visible && app.MaximizeButton.Visible && app.CloseButton.Visible,"Custom window controls remain visible");
+            check(app.ResizeHitTest(new Point(1,1))==13 && app.ResizeHitTest(new Point(app.ClientSize.Width-1,app.ClientSize.Height-1))==17,"Frameless resize corners remain available");
+            check(MainWindow.IsDesktopShortcut(Keys.Control|Keys.S) && MainWindow.IsDesktopShortcut(Keys.Control|Keys.O),"File backup shortcuts remain available without a menu");
             check(MainWindow.IsLocal(MainWindow.Origin+"/index.html"),"Local HTTPS origin is accepted");
             check(!MainWindow.IsLocal("https://deutsch-assistant.example.evil/"),"Lookalike host is rejected");
             check(!MainWindow.IsLocal("http://deutsch-assistant.example/"),"HTTP is rejected");
@@ -25,6 +32,20 @@ namespace DeutschAssistant
             }
             else
             {
+                app.MaximizeButton.PerformClick();
+                await Task.Delay(200);
+                check(app.WindowState==FormWindowState.Maximized,"Custom maximize button works");
+                var work=Screen.FromControl(app).WorkingArea;
+                check(app.Bounds.Bottom<=work.Bottom+2 && app.Bounds.Top>=work.Top-2,"Maximized window respects taskbar working area");
+                app.MaximizeButton.PerformClick();
+                check(app.WindowState==FormWindowState.Normal,"Custom restore button works");
+                app.MinimizeButton.PerformClick();
+                check(app.WindowState==FormWindowState.Minimized,"Custom minimize button works");
+                app.WindowState=FormWindowState.Normal;
+                app.ToggleFullscreen();
+                check(!app.TitleBar.Visible,"Fullscreen hides the custom header");
+                app.ToggleFullscreen();
+                check(app.TitleBar.Visible && app.WindowState==FormWindowState.Normal,"Fullscreen restores the normal window");
                 await app.AsyncValue("const {store}=await import('/js/ui/state.js');store.update(db=>{db.settings.dailyGoal=47;db.userDecks.push({id:'windows-qa',name:'Windows 验收卡组',level:'B1'});return db;});return store.lastSaveOk;");
                 string backup=Path.Combine(directory,"learning-backup.json");
                 await app.ExportBackup(backup);
@@ -50,6 +71,20 @@ namespace DeutschAssistant
                         await Task.Delay(500);
                         using(var image=File.Create(Path.Combine(directory,"qa-"+page+".png")))
                             await app.Web.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,image);
+                        if(page=="home")
+                        {
+                            using(var header=new Bitmap(app.TitleBar.Width,app.TitleBar.Height))
+                            using(var frame=new Bitmap(app.ClientSize.Width,app.ClientSize.Height))
+                            using(var content=Image.FromFile(Path.Combine(directory,"qa-home.png")))
+                            using(var graphics=Graphics.FromImage(frame))
+                            {
+                                app.TitleBar.DrawToBitmap(header,new Rectangle(Point.Empty,header.Size));
+                                graphics.Clear(app.BackColor);
+                                graphics.DrawImage(header,app.PointToClient(app.TitleBar.PointToScreen(Point.Empty)));
+                                graphics.DrawImage(content,new Rectangle(app.PointToClient(app.Web.PointToScreen(Point.Empty)),app.Web.Size));
+                                frame.Save(Path.Combine(directory,"qa-window.png"),System.Drawing.Imaging.ImageFormat.Png);
+                            }
+                        }
                     }
                 }
                 await app.Web.ExecuteScriptAsync("location.hash='#/cards'");
