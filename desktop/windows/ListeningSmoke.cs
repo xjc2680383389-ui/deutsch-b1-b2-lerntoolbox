@@ -26,12 +26,12 @@ namespace DeutschAssistant
             }
             await app.Web.ExecuteScriptAsync("document.querySelector('#toggle-hide').click()");
             check((bool)await app.Value("!document.querySelector('#de-text').textContent.includes('Falls') && document.querySelector('.listen-right').textContent.includes('sich wenden an')"),"Dictation mode hides the sentence and keeps horizontal explanations");
-            await app.Web.ExecuteScriptAsync("document.querySelector('#toggle-hide').click();const input=document.querySelector('#dictation');input.value='Test';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#check-btn').click()");
+            await app.Web.ExecuteScriptAsync("(()=>{document.querySelector('#toggle-hide').click();const input=document.querySelector('#dictation');input.value='Test';input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#check-btn').click();})()");
             await app.WaitFor("document.querySelector('#listening-feedback .feedback.no') && !document.querySelector('#check-btn').disabled");
             check(true,"Incorrect dictation shows feedback");
             await app.Web.ExecuteScriptAsync("document.querySelector('#clear-btn').click()");
             check((bool)await app.Value("document.querySelector('#dictation').value==='' && document.querySelector('#listening-feedback').textContent===''") ,"Clear resets dictation and feedback");
-            await app.Web.ExecuteScriptAsync("const input=document.querySelector('#dictation');input.value=document.querySelector('#de-text').textContent;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#check-btn').click()");
+            await app.Web.ExecuteScriptAsync("(()=>{const input=document.querySelector('#dictation');input.value=document.querySelector('#de-text').textContent;input.dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#check-btn').click();})()");
             await app.WaitFor("document.querySelector('#listening-feedback .feedback.ok') && !document.querySelector('#check-btn').disabled");
             check(true,"Correct dictation passes and is saved");
             await app.Web.ExecuteScriptAsync("document.querySelector('#level-filter').value='B1';document.querySelector('#level-filter').dispatchEvent(new Event('change',{bubbles:true}))");
