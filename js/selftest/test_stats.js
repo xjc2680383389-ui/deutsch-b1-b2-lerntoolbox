@@ -14,6 +14,12 @@ function ev(dayOffset, correct, type) {
 
 export const title = '学习统计聚合';
 export const results = [
+  t('达到模型目标的状态不计待复习与到期分布，学习记录仍保留', () => {
+    const states = { a: { id: 'a', memoryTargetReached: true, due: 0, lastReviewed: T0 } };
+    eq(summarize([{ ts: T0, type: 'card', correct: true }], states, T0).dueToday, 0);
+    eq(deckOverview([{ id: 'a' }], states, T0).due, 0);
+    eq(dueDistribution(states, T0, 7).reduce((n, d) => n + d.count, 0), 0);
+  }),
   t('dayKey 与 addDays 跨月正确', () => {
     eq(dayKey(T0), '2026-01-10', '日期键');
     eq(dayKey(addDays(T0, 25)), '2026-02-04', '跨月推进');
@@ -97,11 +103,12 @@ export const results = [
   t('推进 100 天：SRS 到期分布与调度结果一致', () => {
     let st = createState('a');
     let now = T0 - 5 * DAY_MS;
-    st = schedule(st, RATING.KNOWN, now);      // 1 天后
-    st = schedule(st, RATING.KNOWN, st.due);   // 6 天后
+    st = schedule(st, RATING.KNOWN, now);
+    st = schedule(st, RATING.KNOWN, st.due);
     const states = { a: st };
-    const dist = dueDistribution(states, T0, 7);
-    const idx = Math.floor((startOfDay(st.due) - startOfDay(T0)) / DAY_MS);
+    const windowStart = st.due - 2 * DAY_MS;
+    const dist = dueDistribution(states, windowStart, 7);
+    const idx = Math.floor((startOfDay(st.due) - startOfDay(windowStart)) / DAY_MS);
     eq(dist[idx].count, 1, '到期卡片应落在第 ' + idx + ' 天');
     eq(dist.reduce((a, b) => a + b.count, 0), 1, '窗口内总数');
   }),

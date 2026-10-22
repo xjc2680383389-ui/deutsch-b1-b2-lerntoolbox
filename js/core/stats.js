@@ -84,7 +84,7 @@ export function dueDistribution(states, now, days) {
   const todayStart = startOfDay(now);
   Object.keys(states || {}).forEach((id) => {
     const s = states[id];
-    if (!s) return;
+    if (!s || s.memoryTargetReached) return;
     const due = s.due || 0;
     if (due <= now) { out[0].count += 1; return; }
     const idx = Math.floor((startOfDay(due) - todayStart) / DAY_MS);
@@ -126,7 +126,7 @@ export function summarize(events, states, now) {
     const s = states[id];
     if (!s) return;
     totalCards += 1;
-    if ((s.due || 0) <= now) dueToday += 1;
+    if (!s.memoryTargetReached && (s.due || 0) <= now) dueToday += 1;
   });
   return {
     totalEvents: evs.length,
@@ -151,7 +151,7 @@ export function deckOverview(cards, states, now) {
     if (!s || !s.lastReviewed) fresh += 1;
     else {
       learning += 1;
-      if ((s.due || 0) <= now) due += 1;
+      if (!s.memoryTargetReached && (s.due || 0) <= now) due += 1;
     }
   });
   return { total: (cards || []).length, fresh, learning, due };
