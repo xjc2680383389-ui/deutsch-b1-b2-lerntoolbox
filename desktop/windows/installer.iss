@@ -1,7 +1,7 @@
 ﻿[Setup]
 AppId=DeutschAssistant.Desktop
 AppName=德语学习助手
-AppVersion=1.0.2
+AppVersion=1.0.3
 AppPublisher=Deutsch Learning Assistant
 DefaultDirName={localappdata}\Programs\DeutschAssistant
 DefaultGroupName=德语学习助手

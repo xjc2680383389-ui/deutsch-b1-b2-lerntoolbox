@@ -201,12 +201,13 @@ input::placeholder, textarea::placeholder { color: #98a198; opacity: 1; }
 .topic-card .meta { color: var(--muted); font-size: 11px; margin-top: auto; }
 .topic-card .btn { align-self: flex-start; margin-top: 4px; }
 /* 听力与解析 */
-.listen-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 24px; }
+.listen-wrap { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
 .listen-left { min-width: 0; }
-.listen-right { writing-mode: vertical-rl; text-orientation: mixed; background: #f5f7ef; border: 1px solid #e5eadb; border-radius: 12px; padding: 18px 12px; overflow: auto; max-height: 420px; font-size: 13px; line-height: 2; }
-.listen-right .vr-title { font-weight: 700; color: var(--primary); }
-.listen-right .vr-item { margin-bottom: 14px; }
-.listen-right .vr-item b { color: var(--ink); }
+.listen-right { writing-mode: horizontal-tb; min-width: 0; background: #f5f7ef; border: 1px solid #e5eadb; border-radius: 12px; padding: 20px; overflow-wrap: break-word; font-size: 14px; line-height: 1.85; }
+.listen-right .vr-title { font-weight: 700; color: var(--primary); margin-bottom: 16px; }
+.listen-right .vr-item { margin-bottom: 16px; }
+.listen-right .vr-item:last-child { margin-bottom: 0; }
+.listen-right .vr-item b { display: block; color: var(--ink); margin-bottom: 3px; }
 .listen-right .vr-item span { color: var(--muted); }
 .listen-text { font-size: 22px; line-height: 1.9; padding: 14px 0; overflow-wrap: anywhere; }
 .listen-text .w { padding: 0 1px; border-radius: 3px; }
@@ -245,6 +246,7 @@ th { color: var(--muted); font-weight: 500; font-size: 11px; }
 @media (min-width: 1800px) { .container { margin-right: auto; } }
 @media (max-height: 780px) and (min-width: 901px) { .sidebar-note { margin-top: 36px; } .brand { margin-bottom: 25px; } }
 @media (max-width: 1240px) {
+  .listen-wrap { grid-template-columns: 1fr; }
   :root { --sidebar: 206px; }
   .topbar-inner { padding-inline: 12px; }
   .brand { font-size: 15px; gap: 8px; }

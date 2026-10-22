@@ -71,6 +71,7 @@ namespace DeutschAssistant
                     await app.WaitFor("document.querySelector('#view-"+page+".active h1') && !document.querySelector('#view-"+page+"[aria-busy]')");
                     check((bool)await app.Value("document.querySelector('#view-"+page+" h1').getBoundingClientRect().height>0"),page+" route renders visibly");
                     await NativeChromeSmoke.Check(app,directory,page,check);
+                    if(page=="listening") await ListeningSmoke.Run(app,directory,check);
                     if(page=="home" || page=="data")
                     {
                         await Task.Delay(500);
