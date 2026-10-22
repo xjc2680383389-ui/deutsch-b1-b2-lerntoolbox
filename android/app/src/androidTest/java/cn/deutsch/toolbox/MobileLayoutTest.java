@@ -92,7 +92,13 @@ public class MobileLayoutTest {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(value -> activity = value);
             waitFor("document.querySelector('#view-home h1') && document.getElementById('launch-screen').hidden");
+            JSONObject header = new JSONObject(js("(() => { const brand=document.querySelector('.topbar .brand'); const nav=document.querySelector('.nav').getBoundingClientRect(); return {brandHidden:getComputedStyle(brand).display==='none', navTop:nav.top}; })()"));
+            assertTrue("mobile header hides app name and icon", header.getBoolean("brandHidden"));
+            assertTrue("navigation is first below the native safe area", header.getDouble("navTop") >= 0 && header.getDouble("navTop") <= 20);
             safeBounds(); screenshot("qa-home"); launcherIcon();
+            js("location.hash='#/listening'");
+            waitFor("document.querySelector('#view-listening.active h1')");
+            safeBounds(); screenshot("qa-listening");
             js("location.href='splash.html'");
             waitFor("document.querySelector('.splash-page .launch-icon')?.complete");
             safeBounds(); screenshot("qa-splash");
