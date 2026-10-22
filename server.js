@@ -25,10 +25,19 @@ const MIME = {
 };
 
 function handle(req, res) {
-  let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+    if (urlPath.includes('\0')) throw new URIError('NUL in URL');
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('无效的访问地址');
+    return;
+  }
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
-  const target = path.join(ROOT, path.normalize(urlPath).replace(/^([/\\])+/, ''));
-  if (!target.startsWith(ROOT)) {
+  const target = path.resolve(ROOT, '.' + urlPath.replaceAll('\\', '/'));
+  const relative = path.relative(ROOT, target);
+  if (relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('禁止访问');
     return;
