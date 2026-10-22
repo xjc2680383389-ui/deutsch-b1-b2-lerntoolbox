@@ -75,3 +75,4 @@ if (!location.hash) location.hash = '#/home';
 // 地址栏带 ?demo=1 时写入一次演示数据，便于冒烟与截图
 if (location.search.indexOf('demo=1') >= 0) seedDemo();
 route();
+window.dispatchEvent(new Event('dwt:ready'));

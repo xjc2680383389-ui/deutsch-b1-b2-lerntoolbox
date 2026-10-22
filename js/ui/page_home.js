@@ -82,7 +82,7 @@ export function render(root) {
       </div></section>
       <section class="panel due-panel"><div class="section-heading"><h2>接下来 7 天</h2><span class="chart-key"><i></i> 到期卡片</span></div><div class="chart">${barChart(due.map((d) => ({ label: d.date, value: d.count })), { height: 240, unit: ' 张' })}</div><div class="legend">${due.some((d) => d.count) ? '按时温习，让记忆慢慢沉淀。逾期卡片计入今天。' : '完成背卡后，这里会显示你的复习计划。'}</div></section>
     </div>
-    <footer class="home-footer">学习数据仅保存在当前浏览器中 <span>·</span> 记得定期在<a href="#/data">数据管理</a>中备份</footer>
+    <footer class="home-footer">学习数据仅保存在当前浏览器中 <span>·</span> 记得定期在<a href="#/data">数据管理</a>中备份 <span>·</span> <a href="splash.html">开屏预览</a></footer>
   `;
 
   qsa('[data-deck]', root).forEach((link) => {
