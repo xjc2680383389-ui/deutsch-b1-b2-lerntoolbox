@@ -114,10 +114,12 @@ function paint() {
       <div class="row mb8">
         <button class="btn" id="export-btn">导出备份文本</button>
         <button class="btn" id="copy-btn">复制到剪贴板</button>
+        <button class="btn" id="before-import-btn">导出导入前备份</button>
         <button class="btn primary" id="import-btn">导入备份文本</button>
-        <button class="btn danger" id="wipe-btn">清空全部数据</button>
+        <button class="btn danger" id="wipe-btn">清空当前记录</button>
       </div>
       <textarea id="json-box" class="mono" placeholder="点击「导出备份文本」后内容会出现在这里；粘贴备份内容后点击「导入备份文本」即可恢复。"></textarea>
+      <p class="small muted">导入会替换本机全部学习记录，不合并两端进度。仅保留最近一次导入前备份，请另行导出长期保存。备份上限为 10 MiB。</p>
       <p class="small muted">当前记录：学习事件 ${db.events.length} 条 · 错题 ${db.mistakes.length} 条 · 卡片状态 ${Object.keys(db.states).length} 个 · 自建词条 ${Object.keys(db.customCards).length} 个。</p>
     </div>
   `;
@@ -193,12 +195,23 @@ function paint() {
     paint();
   }));
   qs('#export-btn').addEventListener('click', () => {
-    qs('#json-box').value = store.exportJson();
-    toast('已导出到下方文本框');
+    try { qs('#json-box').value = store.exportJson(); toast('已导出到下方文本框'); }
+    catch (err) { toast('导出失败：' + err.message); }
+  });
+  qs('#before-import-btn').addEventListener('click', () => {
+    try {
+      const text = store.exportBeforeImport();
+      if (!text) { toast('尚无导入前备份'); return; }
+      qs('#json-box').value = text;
+      toast('导入前备份已放入文本框，请复制保存或确认后导入恢复');
+    } catch (err) { toast('无法读取导入前备份：' + err.message); }
   });
   qs('#copy-btn').addEventListener('click', async () => {
     const box = qs('#json-box');
-    if (!box.value) box.value = store.exportJson();
+    if (!box.value) {
+      try { box.value = store.exportJson(); }
+      catch (err) { toast('导出失败：' + err.message); return; }
+    }
     try {
       await navigator.clipboard.writeText(box.value);
       toast('已复制到剪贴板');
@@ -210,12 +223,13 @@ function paint() {
   qs('#import-btn').addEventListener('click', () => {
     const text = qs('#json-box').value.trim();
     if (!text) { toast('请先粘贴备份内容'); return; }
+    if (!window.confirm('导入会替换本机全部学习记录，不合并进度。将保留最近一次导入前备份，是否继续？')) return;
     const r = store.importJson(text);
     if (r.ok) { toast('导入成功'); paint(); }
     else toast('导入失败：' + r.error);
   });
   qs('#wipe-btn').addEventListener('click', () => {
-    if (!window.confirm('确定要清空全部学习数据吗？该操作不可撤销，建议先导出备份。')) return;
+    if (!window.confirm('确定要清空当前学习记录吗？建议先导出备份。最近一次导入前备份仍会保留。')) return;
     store.reset();
     if (!store.lastSaveOk) return;
     activeDeck = '';

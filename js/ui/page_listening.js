@@ -1,4 +1,4 @@
-// 听力精听页：左侧原文、右侧竖排解析；逐句播放与逐句自检
+// 听力精听页：左侧原文、横排词汇与语法解析；逐句播放与逐句自检
 import { SENTENCES as LISTENING } from '../data/listening.js';
 import { store, recordListening } from './state.js';
 import { judgeListening, diffWords } from '../core/listening.js';
@@ -85,7 +85,7 @@ function paint() {
   rootEl.innerHTML = `
     <div class="page-head">
       <h1>听力精听</h1>
-      <p>共 ${LISTENING.length} 句（B1 / B2 分级）。流程：播放 → 听写 → 自检 → 对照竖排解析。<span id="voice-hint"></span></p>
+      <p>共 ${LISTENING.length} 句（B1 / B2 分级）。流程：播放 → 听写 → 自检 → 对照词汇与语法解析。<span id="voice-hint"></span></p>
     </div>
 
     <div class="panel">
@@ -140,12 +140,12 @@ function paint() {
           <div id="listening-feedback" aria-live="polite">${feedbackHtml()}</div>
         </div>
 
-        <div class="listen-right">
+        <aside class="listen-right" aria-label="逐句解析">
           <div class="vr-title">逐句解析</div>
-          ${s.points.map((p) => `<div class="vr-item"><b>${esc(p.w)}</b>　<span>${esc(p.zh)}</span></div>`).join('')}
-          <div class="vr-item"><b>语法</b>　<span>${esc(s.grammar)}</span></div>
-          <div class="vr-item"><b>译文</b>　<span>${esc(s.zh)}</span></div>
-        </div>
+          ${s.points.map((p) => `<div class="vr-item"><b>${esc(p.w)}</b><span>${esc(p.zh)}</span></div>`).join('')}
+          <div class="vr-item"><b>语法</b><span>${esc(s.grammar)}</span></div>
+          <div class="vr-item"><b>译文</b><span>${esc(s.zh)}</span></div>
+        </aside>
       </div>
     </div>
   `;
