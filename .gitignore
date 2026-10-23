@@ -9,3 +9,10 @@ node_modules/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 桌面端构建产物
+desktop/windows/bin/
+desktop/windows/obj/
+desktop/windows/www/
+dist/
+windows-qa/

@@ -2,30 +2,52 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>德语 B1/B2 学习工具箱</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#176b58">
+  <meta name="apple-mobile-web-app-title" content="德语助手">
+  <title>德语学习助手 · B1/B2 学习工具箱</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/brand/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/brand/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/launch.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="brand">
-        德语 B1/B2 学习工具箱
-        <small>单词 SRS · 语法专题 · 听力精听 · 错题本 · 学习统计</small>
-      </div>
-      <nav class="nav">
-        <a href="#/home">首页</a>
-        <a href="#/cards">背卡</a>
-        <a href="#/grammar">语法练习</a>
-        <a href="#/listening">听力精听</a>
-        <a href="#/mistakes">错题本</a>
-        <a href="#/stats">学习统计</a>
-        <a href="#/data">数据管理</a>
-      </nav>
+  <section id="launch-screen" class="launch-screen" role="dialog" aria-modal="true" aria-labelledby="launch-title" tabindex="-1" hidden>
+    <div class="launch-brand">
+      <img class="launch-icon" src="assets/brand/icon-512.webp" width="112" height="112" alt="" fetchpriority="high">
+      <h1 id="launch-title">德语学习助手</h1>
+      <p class="launch-level">B1 / B2</p>
+      <p class="launch-tagline">让每一小步，都算数。</p>
     </div>
-  </header>
+    <button type="button" class="launch-enter" id="launch-skip">进入学习 <span aria-hidden="true">→</span></button>
+    <div class="launch-footer"><span class="launch-flag" aria-hidden="true"></span><p>按自己的节奏，慢慢来</p></div>
+  </section>
+  <div id="app-shell">
+  <a class="skip-link" href="#workspace">跳转到学习内容</a>
+  <aside class="topbar" aria-label="学习导航">
+    <div class="topbar-inner">
+      <a class="brand" href="#/home" aria-label="德语学习助手首页">
+        <img class="brand-mark brand-image" src="assets/brand/icon-192.webp" width="40" height="40" alt="">
+        <span>德语学习助手<small>B1 / B2 学习工具箱</small></span>
+      </a>
+      <div class="nav-label">我的学习空间</div>
+      <nav class="nav" aria-label="主导航">
+        <a href="#/home" data-icon="home">今日概览</a>
+        <a href="#/cards" data-icon="cards">单词背卡</a>
+        <a href="#/grammar" data-icon="grammar">语法练习</a>
+        <a href="#/listening" data-icon="listening">听力精听</a>
+        <a href="#/mistakes" data-icon="mistakes">错题本</a>
+        <a href="#/stats" data-icon="stats">学习统计</a>
+        <a href="#/data" data-icon="data">数据管理</a>
+      </nav>
+      <div class="sidebar-note"><span class="note-sprout" aria-hidden="true">✳</span><strong>按自己的节奏，慢慢来。</strong><p>每一次练习，都是积累。</p></div>
+      <div class="local-note"><i aria-hidden="true"></i> 离线可用 · 数据保存在本机</div>
+    </div>
+  </aside>
 
-  <main class="container">
+  <div class="workspace-bar"><span>我的学习空间 <span aria-hidden="true">/</span> <strong id="workspace-title">今日概览</strong></span><span class="workspace-meta">B1 <span aria-hidden="true">→</span> B2 <i></i> 日积月累，学有所获</span></div>
+  <main class="container" id="workspace" tabindex="-1">
     <section id="view-home" class="view"></section>
     <section id="view-cards" class="view"></section>
     <section id="view-grammar" class="view"></section>
@@ -34,7 +56,8 @@
     <section id="view-stats" class="view"></section>
     <section id="view-data" class="view"></section>
   </main>
-
+  </div>
+  <script src="js/ui/launch.js" defer></script>
   <script type="module" src="js/ui/app.js"></script>
 </body>
 </html>
