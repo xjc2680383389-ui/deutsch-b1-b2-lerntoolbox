@@ -186,7 +186,8 @@ namespace DeutschAssistant
         {
             if(!fullscreen)
             {
-                savedBounds=Bounds; savedState=WindowState;
+                savedState=WindowState;
+                savedBounds=WindowState==FormWindowState.Normal?Bounds:RestoreBounds;
                 fullscreen=true; TitleBar.Visible=false; Padding=Padding.Empty;
                 WindowState=FormWindowState.Normal; WindowState=FormWindowState.Maximized;
             }
