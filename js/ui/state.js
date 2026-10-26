@@ -1,6 +1,6 @@
 // 应用状态：持久化后端、虚拟时钟、事件记录（UI 与核心逻辑的粘合层）
 import { createStore, STORAGE_KEY } from '../core/store.js';
-import { BUILTIN_DECKS, VOCAB, TOPICS } from '../data/index.js';
+import { BUILTIN_DECKS, VOCAB } from '../data/vocabulary.js';
 import { collectMistake } from '../core/mistakes.js';
 import { toast } from './util.js';
 
@@ -40,11 +40,6 @@ export function cardsOfDeck(deckId) {
     .filter((c) => c.deckId === deckId);
 }
 
-export function topicName(id) {
-  const t = TOPICS.find((x) => x.id === id);
-  return t ? t.name : '语法练习';
-}
-
 function pushEvent(ev) {
   store.update((db) => {
     db.events.push(Object.assign({ ts: nowTs() }, ev));
@@ -53,8 +48,17 @@ function pushEvent(ev) {
   });
 }
 
-export function recordCardReview(card, rating, correct) {
-  pushEvent({ type: 'card', deck: card.deckId, correct: !!correct, rating });
+export function recordCardReview(card, rating, correct, nextState, mistake = null) {
+  // 卡片状态、学习记录和错题在一个事务内保存，失败时一同回滚。
+  store.update((db) => {
+    const ts = nowTs();
+    if (nextState) db.states[card.id] = nextState;
+    db.events.push({ ts, type: 'card', deck: card.deckId, correct: !!correct, rating });
+    if (db.events.length > 8000) db.events = db.events.slice(-8000);
+    if (mistake) db.mistakes = collectMistake(db.mistakes, Object.assign({ ts }, mistake)).list;
+    return db;
+  });
+  return store.lastSaveOk;
 }
 
 export function recordQuiz(topicId, qtype, correct) {

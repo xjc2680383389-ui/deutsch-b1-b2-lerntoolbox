@@ -1,9 +1,159 @@
 // store 模块自检（内存后端，可重复运行）
-import { createStore, createMemoryBackend, emptyDb, sanitizeDb, SCHEMA_VERSION, STORAGE_KEY } from '../core/store.js';
+import { createStore, createMemoryBackend, emptyDb, sanitizeDb, SCHEMA_VERSION, STORAGE_KEY, BEFORE_IMPORT_KEY } from '../core/store.js';
+import { createState, buildReviewQueue, schedule } from '../core/srs.js';
 import { t, assert, eq } from './harness.js';
 
 export const title = '持久化与数据结构';
+
+function cardBackup() {
+  const db = emptyDb();
+  db.profile.createdAt = 1;
+  db.states['b1:abholen'] = createState('b1:abholen');
+  db.userDecks = [{ id: 'u', name: '自建卡组', level: 'B1' }];
+  db.customCards['u:Test'] = { id: 'u:Test', deckId: 'u', term: 'Test', zh: '测试' };
+  return db;
+}
+
 export const results = [
+  t('残缺状态、自建卡和错误归属在任何写入前拒绝，重复导入也保留旧快照', () => {
+    const mutations = [
+      (db) => { db.states['b1:abholen'] = {}; },
+      ...Object.keys(createState('b1:abholen')).map((key) => (db) => { delete db.states['b1:abholen'][key]; }),
+      (db) => { db.states['b1:abholen'].id = 'b1:other'; },
+      (db) => { db.customCards['u:Test'] = { term: 'Test' }; },
+      ...['id', 'deckId', 'term', 'zh'].map((key) => (db) => { delete db.customCards['u:Test'][key]; }),
+      (db) => { db.customCards['u:Test'].id = 'u:other'; },
+      (db) => { db.customCards['u:Test'].deckId = 'missing'; },
+      (db) => { db.customCards['u:Test'].deckId = 'b1'; },
+      (db) => { db.customCards['u:Test'].term = ' '; },
+      (db) => { db.customCards['u:Test'].zh = ''; },
+      (db) => { db.userDecks.push({ ...db.userDecks[0] }); },
+      (db) => { db.userDecks[0].id = 'b1'; },
+      (db) => { db.userDecks[0].id = '__proto__'; },
+    ];
+    mutations.forEach((mutate, index) => {
+      const initial = cardBackup(); initial.events = [{ ts: 42 }];
+      const backend = createMemoryBackend(initial), store = createStore(backend);
+      backend.setItem(BEFORE_IMPORT_KEY, '原恢复快照');
+      const before = backend.getItem(STORAGE_KEY), memory = store.exportJson();
+      const candidate = cardBackup(); mutate(candidate);
+      const set = backend.setItem; let writes = 0;
+      backend.setItem = (key, value) => { writes += 1; set(key, value); };
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const r = store.importJson(JSON.stringify(candidate));
+        eq(r.ok, false, '拒绝残缺样本 ' + index);
+        assert(/states\.|customCards\.|userDecks\./.test(r.error), '错误定位到记录');
+        eq(backend.getItem(STORAGE_KEY), before, '主库原文不变');
+        eq(store.exportJson(), memory, '内存库不变');
+        eq(store.exportBeforeImport(), '原恢复快照', '已有快照不变');
+      }
+      eq(writes, 0, '拒绝前没有任何写入');
+    });
+  }),
+  t('调度字段的错误类型、数值域和历史评分不能导入', () => {
+    const bad = [
+      ['ef', 0], ['ef', 3.1], ['ef', '2.5'], ['interval', -1], ['due', null],
+      ['lastReviewed', -1], ['reps', 0.5], ['lapses', -1], ['totalReviews', Number.MAX_SAFE_INTEGER + 1],
+      ['lastRating', 3], ['history', null], ['history', [{ at: 0, rating: -1 }]],
+      ['history', [{ at: -1, rating: 2 }]], ['history', [{ at: 0, rating: '2' }]],
+    ];
+    bad.forEach(([key, value]) => {
+      const candidate = cardBackup(); candidate.states['b1:abholen'][key] = value;
+      const store = createStore(createMemoryBackend());
+      eq(store.importJson(JSON.stringify(candidate)).ok, false, '拒绝非法 ' + key);
+    });
+  }),
+  t('完整卡片导入重载后可复习、可归组，三档评分仍可备份往返', () => {
+    const initial = cardBackup();
+    initial.states['b1:abholen'] = { ...createState('b1:abholen'), lastReviewed: 1, due: 123 };
+    const store = createStore(createMemoryBackend());
+    eq(store.importJson('\uFEFF' + JSON.stringify(initial)).ok, true, '完整数据兼容 BOM');
+    store.load();
+    const custom = Object.values(store.data.customCards).filter((c) => c.deckId === 'u');
+    eq(custom.length, 1, '自建卡可按卡组访问');
+    const cards = [{ id: 'b1:abholen', deckId: 'b1' }, ...custom];
+    eq(buildReviewQueue(cards, store.data.states, 1000).map((c) => c.id).join(','), 'b1:abholen,u:Test', '到期卡和新卡均进入队列');
+    for (const rating of [0, 1, 2]) {
+      const next = schedule(store.data.states['b1:abholen'], rating, 1000);
+      ['ef', 'interval', 'reps', 'lapses', 'due', 'lastReviewed', 'totalReviews'].forEach((key) => assert(Number.isFinite(next[key]), '评分后 ' + key + ' 有限'));
+      const candidate = cardBackup(); candidate.states['b1:abholen'] = next;
+      eq(store.importJson(JSON.stringify(candidate)).ok, true, '真实评分状态可再次导入');
+      store.load();
+      eq(store.data.states['b1:abholen'].lastRating, rating, '评分保留');
+    }
+    eq(store.importJson(JSON.stringify(emptyDb())).ok, true, '完整空库仍可导入');
+  }),
+  t('无效备份的结构、版本、字段或条目错误均不能覆盖原库', () => {
+    const mutations = [() => ({}), () => null, () => [], () => 'text',
+      (db) => { db.version = 99; return db; },
+      (db) => { db.version = '1'; return db; },
+      (db) => { db.states = null; return db; },
+      (db) => { db.settings = []; return db; },
+      (db) => { db.events = {}; return db; },
+      (db) => { db.userDecks = null; return db; },
+      (db) => { db.userDecks = [null]; return db; },
+      (db) => { db.events = [{ ts: 'bad' }]; return db; },
+      (db) => { db.customCards = { a: { term: '' } }; return db; },
+      (db) => { db.states = JSON.parse('{"__proto__":{}}'); return db; },
+      (db) => { db.settings.dailyGoal = '30'; return db; },
+      ...Object.keys(emptyDb()).map((key) => (db) => { delete db[key]; return db; })];
+    mutations.forEach((mutate, index) => {
+      const initial = emptyDb();
+      initial.profile.createdAt = 1; initial.events = [{ ts: 42 }];
+      const backend = createMemoryBackend(initial), store = createStore(backend);
+      const before = backend.getItem(STORAGE_KEY), memory = store.exportJson();
+      eq(store.importJson(JSON.stringify(mutate(emptyDb()))).ok, false, '拒绝无效样本 ' + index);
+      eq(backend.getItem(STORAGE_KEY), before, '原持久化数据不变');
+      eq(store.exportJson(), memory, '原内存数据不变');
+    });
+  }),
+  t('导入前快照保存最新持久化记录，并可再次导入恢复', () => {
+    const backend = createMemoryBackend(), store = createStore(backend);
+    const other = createStore(backend);
+    other.update((db) => { db.events.push({ ts: 42 }); return db; });
+    const before = backend.getItem(STORAGE_KEY);
+    eq(store.importJson(JSON.stringify(emptyDb())).ok, true, '导入成功');
+    eq(store.data.events.length, 0, '新库已写入');
+    eq(store.exportBeforeImport(), before, '快照包含另一实例的最新事件');
+    eq(store.importJson(store.exportBeforeImport()).ok, true, '恢复快照');
+    eq(store.data.events[0].ts, 42, '原事件恢复');
+  }),
+  t('快照写失败时不继续导入，主库写失败时保留内存和持久化原库', () => {
+    for (const failAt of [1, 2]) {
+      const initial = emptyDb(); initial.profile.createdAt = 1; initial.events = [{ ts: 42 }];
+      const backend = createMemoryBackend(initial), store = createStore(backend);
+      const before = backend.getItem(STORAGE_KEY), set = backend.setItem;
+      let writes = 0;
+      backend.setItem = (key, value) => { if (++writes === failAt) throw new Error('quota'); set(key, value); };
+      eq(store.importJson(JSON.stringify(emptyDb())).ok, false, '报告失败');
+      eq(writes, failAt, '快照失败不能继续写主库');
+      eq(backend.getItem(STORAGE_KEY), before, '原持久化库不变');
+      eq(store.data.events[0].ts, 42, '原内存库不变');
+    }
+  }),
+  t('备份往返保留全部 v1 字段，含原始发行版的听力字段', () => {
+    const initial = emptyDb(); initial.profile.createdAt = 1;
+    initial.states.a = { ...createState('a'), due: 123 };
+    initial.customCards.a = { id: 'a', term: '测试😀', deckId: 'u', zh: '测试' };
+    initial.userDecks = [{ id: 'u', name: '测试', level: 'B1' }];
+    initial.events = [{ ts: 42 }]; initial.mistakes = [{ id: 'm' }];
+    initial.quizStats.q = { attempts: 3, correct: 2 }; initial.listeningStats.l = { plays: 4, best: 100 };
+    const source = createStore(createMemoryBackend(initial));
+    const target = createStore(createMemoryBackend());
+    eq(target.importJson('\uFEFF' + source.exportJson()).ok, true, '兼容 UTF-8 BOM 文本');
+    eq(target.exportJson(), source.exportJson(), '全字段完整往返');
+  }),
+  t('超过 10 MiB 的 UTF-8 备份不能导入或导出，原记录不变', () => {
+    const backend = createMemoryBackend(), store = createStore(backend);
+    const large = emptyDb(); large.customCards.a = { term: '德'.repeat(4 * 1024 * 1024) };
+    const before = backend.getItem(STORAGE_KEY);
+    eq(store.importJson(JSON.stringify(large)).ok, false, '按 UTF-8 字节拒绝大备份');
+    eq(backend.getItem(STORAGE_KEY), before, '原库不变');
+    const largeStore = createStore(createMemoryBackend(large));
+    let rejected = false;
+    try { largeStore.exportJson(); } catch { rejected = true; }
+    assert(rejected, '不能导出无法回导的超限备份');
+  }),
   t('多个实例交替写入保留其他实例的新事件', () => {
     const backend = createMemoryBackend();
     const a = createStore(backend), b = createStore(backend);
@@ -32,7 +182,7 @@ export const results = [
     const backend = createMemoryBackend({ profile: { createdAt: 1 }, events: [{ ts: 1 }] });
     const store = createStore(backend);
     backend.setItem = () => { throw new Error('denied'); };
-    eq(store.importJson('{}').ok, false, '导入失败');
+    eq(store.importJson(JSON.stringify(emptyDb())).ok, false, '合法备份写入失败');
     eq(store.data.events.length, 1, '保留原数据');
     store.reset();
     eq(store.lastSaveOk, false, '清空失败');
@@ -146,7 +296,7 @@ export const results = [
   t('导出再导入可完整还原', () => {
     const store = createStore(createMemoryBackend());
     store.update((db) => {
-      db.states['b1:abholen'] = { id: 'b1:abholen', due: 999 };
+      db.states['b1:abholen'] = { ...createState('b1:abholen'), due: 999 };
       db.events.push({ ts: 5, type: 'quiz', correct: false });
       return db;
     });

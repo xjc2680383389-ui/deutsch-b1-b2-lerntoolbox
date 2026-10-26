@@ -1,6 +1,8 @@
 // 持久化层：localStorage / 内存后端通用（纯逻辑，可注入后端，便于自检）
 export const SCHEMA_VERSION = 1;
 export const STORAGE_KEY = 'dwt.db.v1';
+export const BEFORE_IMPORT_KEY = STORAGE_KEY + '.before-import';
+export const MAX_BACKUP_BYTES = 10 * 1024 * 1024;
 
 export function emptyDb() {
   return {
@@ -25,6 +27,52 @@ export function emptyDb() {
 }
 
 const MAX_EVENTS = 8000;
+
+function checkBackupSize(text) {
+  if (typeof text !== 'string' || new TextEncoder().encode(text).byteLength > MAX_BACKUP_BYTES) {
+    throw new Error('备份必须是 UTF-8 文本，且不能超过 10 MiB；现有学习记录未修改。');
+  }
+}
+
+function validateBackup(raw) {
+  const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const name = (v) => typeof v === 'string' && v.trim().length > 0;
+  const safeId = (v) => name(v) && !['__proto__', 'constructor', 'prototype'].includes(v);
+  const numeric = (v) => typeof v === 'number' && Number.isFinite(v);
+  const count = (v) => Number.isSafeInteger(v) && v >= 0;
+  const require = (ok, field) => { if (!ok) throw new Error('备份字段无效或缺失：' + field + '；现有学习记录未修改。'); };
+  require(record(raw), '根对象');
+  require(raw.version === SCHEMA_VERSION, 'version（仅支持完整 v1 备份）');
+  for (const key of ['profile', 'settings', 'states', 'customCards', 'quizStats', 'listeningStats']) require(record(raw[key]), key);
+  for (const key of ['userDecks', 'events', 'mistakes']) require(Array.isArray(raw[key]), key);
+  require(numeric(raw.profile.createdAt), 'profile.createdAt');
+  for (const [key, value] of Object.entries(emptyDb().settings)) {
+    const actual = raw.settings[key];
+    require(typeof actual === typeof value && (typeof value !== 'number' || numeric(actual)), 'settings.' + key);
+  }
+  require(raw.settings.dailyGoal > 0 && raw.settings.ttsRate > 0, 'settings');
+  const deckIds = new Set();
+  raw.userDecks.forEach((v, index) => {
+    require(record(v) && safeId(v.id) && !['b1', 'b2'].includes(v.id) && !deckIds.has(v.id) &&
+      typeof v.name === 'string' && typeof v.level === 'string', 'userDecks.' + index);
+    deckIds.add(v.id);
+  });
+  const entries = (key, check) => Object.entries(raw[key]).forEach(([id, value]) => {
+    require(safeId(id) && record(value) && check(value, id), key + '.' + id);
+  });
+  // 非空记录必须能进入队列并完成下一次评分；不能猜测缺失的学习进度或卡组。
+  entries('states', (v, id) => v.id === id && numeric(v.ef) && v.ef >= 1.3 && v.ef <= 3 &&
+    ['interval', 'due', 'lastReviewed'].every((key) => numeric(v[key]) && v[key] >= 0) &&
+    ['reps', 'lapses', 'totalReviews'].every((key) => count(v[key])) &&
+    [-1, 0, 1, 2].includes(v.lastRating) && Array.isArray(v.history) &&
+    v.history.every((h) => record(h) && numeric(h.at) && h.at >= 0 && [0, 1, 2].includes(h.rating)));
+  entries('customCards', (v, id) => v.id === id && deckIds.has(v.deckId) && name(v.term) && name(v.zh) &&
+    ['pos', 'example', 'exZh', 'level'].every((key) => !(key in v) || typeof v[key] === 'string'));
+  entries('quizStats', (v) => numeric(v.attempts) && numeric(v.correct));
+  entries('listeningStats', (v) => numeric(v.plays) && numeric(v.best));
+  require(raw.events.length <= MAX_EVENTS && raw.events.every((v) => record(v) && numeric(v.ts)), 'events 条目或数量');
+  require(raw.mistakes.every((v) => record(v) && name(v.id)), 'mistakes 条目');
+}
 
 export function sanitizeDb(raw) {
   const db = emptyDb();
@@ -87,11 +135,11 @@ export function sanitizeDb(raw) {
 }
 
 export function createMemoryBackend(initial) {
-  let text = initial == null ? null : JSON.stringify(initial);
+  const values = new Map(initial == null ? [] : [[STORAGE_KEY, JSON.stringify(initial)]]);
   return {
-    getItem: () => text,
-    setItem: (key, v) => { text = String(v); },
-    removeItem: () => { text = null; },
+    getItem: (key = STORAGE_KEY) => values.get(key) ?? null,
+    setItem: (key, v) => { values.set(key, String(v)); },
+    removeItem: (key = STORAGE_KEY) => { values.delete(key); },
   };
 }
 
@@ -152,11 +200,27 @@ export function createStore(backend, onSaveError = () => {}) {
       if (!persist()) db = previous;
       return db;
     },
-    exportJson() { return JSON.stringify(db, null, 2); },
+    exportJson() {
+      const text = JSON.stringify(db, null, 2);
+      checkBackupSize(text);
+      return text;
+    },
+    exportBeforeImport() { return backend.getItem(BEFORE_IMPORT_KEY); },
     importJson(text) {
       let parsed = null;
-      try { parsed = JSON.parse(text); } catch (err) { return { ok: false, error: '不是合法的 JSON 文本' }; }
+      try { checkBackupSize(text); } catch (err) { return { ok: false, error: err.message }; }
+      try { parsed = JSON.parse(text.replace(/^\uFEFF/, '')); } catch (err) { return { ok: false, error: '不是合法的 JSON 文本' }; }
+      try { validateBackup(parsed); } catch (err) { return { ok: false, error: err.message }; }
       const previous = db;
+      try {
+        // 先保存主库的最新原文；快照失败时禁止覆盖。只保留最近一次导入前快照。
+        const current = backend.getItem(STORAGE_KEY);
+        backend.setItem(BEFORE_IMPORT_KEY, current === null ? JSON.stringify(db) : current);
+      } catch (err) {
+        lastSaveOk = false;
+        onSaveError(err);
+        return { ok: false, error: '无法保存导入前快照，请先导出备份并检查存储空间；现有学习记录未修改' };
+      }
       db = sanitizeDb(parsed);
       if (!persist()) {
         db = previous;
