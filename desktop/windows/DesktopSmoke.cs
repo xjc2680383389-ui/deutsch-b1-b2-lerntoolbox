@@ -61,14 +61,19 @@ namespace DeutschAssistant
                 await app.WaitFor("document.querySelector('#view-home.active h1') && JSON.parse(localStorage.getItem('dwt.db.v1')).settings.dailyGoal===47");
                 check((bool)await app.Value("JSON.parse(localStorage.getItem('dwt.db.v1')).settings.dailyGoal===47"),"Native JSON import restores learning data");
                 string original=(string)await app.Value("localStorage.getItem('dwt.db.v1')");
+                string originalSnapshot=(string)await app.Value("localStorage.getItem('dwt.db.v1.before-import')");
                 string invalid=Path.Combine(directory,"invalid-backup.json");
-                foreach(string sample in new[]{"{invalid","{}","null","[]","{\"version\":1,\"settings\":{},\"states\":null,\"userDecks\":null,\"events\":null}",File.ReadAllText(backup).Replace("\"version\": 1","\"version\": 99")})
+                var invalidSamples=new List<string>{"{invalid","{}","null","[]","{\"version\":1,\"settings\":{},\"states\":null,\"userDecks\":null,\"events\":null}",File.ReadAllText(backup).Replace("\"version\": 1","\"version\": 99")};
+                foreach(string mutation in new[]{"db.states['b1:abholen']={}","db.states['b1:abholen']={id:'b1:abholen',lastReviewed:0}","db.states['windows-qa:Test'].id='wrong'","db.customCards['windows-qa:Test']={term:'Test'}","db.customCards['windows-qa:Test'].deckId='missing'","db.customCards['windows-qa:Test'].id='wrong'"})
+                    invalidSamples.Add((string)await app.AsyncValue("const db=JSON.parse("+app.Json.Serialize(original)+");"+mutation+";return JSON.stringify(db);"));
+                foreach(string sample in invalidSamples)
                 {
                     File.WriteAllText(invalid,sample);
                     bool rejected=false;
                     try { await app.ImportBackup(invalid); } catch { rejected=true; }
                     check(rejected,"Invalid backup syntax, shape or version is rejected");
                     check(original==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Rejected backup preserves all existing data");
+                    check(originalSnapshot==(string)await app.Value("localStorage.getItem('dwt.db.v1.before-import')"),"Rejected native backup preserves the recovery snapshot");
                 }
                 foreach(string page in new[]{"home","cards","grammar","listening","mistakes","stats","data"})
                 {
@@ -86,6 +91,16 @@ namespace DeutschAssistant
                         check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Cancelling the page import preserves the full database");
                         await app.Web.ExecuteScriptAsync("window.confirm=()=>true;document.querySelector('#import-btn').click();window.confirm=window.__savedConfirm;delete window.__savedConfirm");
                         check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Page import rejects an empty JSON object without losing data");
+                        string snapshot=(string)await app.Value("localStorage.getItem('dwt.db.v1.before-import')");
+                        foreach(string sample in invalidSamples)
+                        {
+                            await app.Web.ExecuteScriptAsync("(()=>{const savedConfirm=window.confirm;window.confirm=()=>true;try{document.querySelector('#json-box').value="+app.Json.Serialize(sample)+";document.querySelector('#import-btn').click();}finally{window.confirm=savedConfirm}})()");
+                            check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Page rejects malformed or incomplete records without replacing the database");
+                            check(snapshot==(string)await app.Value("localStorage.getItem('dwt.db.v1.before-import')"),"Rejected page backup preserves the recovery snapshot");
+                        }
+                        await app.Web.ExecuteScriptAsync("(()=>{const savedConfirm=window.confirm;window.confirm=()=>true;try{document.querySelector('#json-box').value="+app.Json.Serialize(current)+";document.querySelector('#import-btn').click();}finally{window.confirm=savedConfirm}})()");
+                        check(current==(string)await app.Value("localStorage.getItem('dwt.db.v1')"),"Valid full backup still imports through the page button");
+                        check((bool)await app.AsyncValue("const {store,cardsOfDeck}=await import('/js/ui/state.js');const {buildReviewQueue,schedule}=await import('/js/core/srs.js');const cards=cardsOfDeck('windows-qa');const queue=buildReviewQueue(cards,store.data.states,Date.now());const next=schedule(store.data.states['windows-qa:Test'],2,Date.now());return cards.length===1 && queue.length===1 && queue[0].id==='windows-qa:Test' && ['ef','interval','reps','lapses','due'].every(k=>Number.isFinite(next[k]));"),"Imported custom card remains reachable, reviewable and schedulable");
                     }
                     if(page=="home" || page=="data")
                     {
