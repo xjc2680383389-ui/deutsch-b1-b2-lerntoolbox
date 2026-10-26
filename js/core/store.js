@@ -36,8 +36,10 @@ function checkBackupSize(text) {
 
 function validateBackup(raw) {
   const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-  const name = (v) => typeof v === 'string' && v.length > 0;
+  const name = (v) => typeof v === 'string' && v.trim().length > 0;
+  const safeId = (v) => name(v) && !['__proto__', 'constructor', 'prototype'].includes(v);
   const numeric = (v) => typeof v === 'number' && Number.isFinite(v);
+  const count = (v) => Number.isSafeInteger(v) && v >= 0;
   const require = (ok, field) => { if (!ok) throw new Error('备份字段无效或缺失：' + field + '；现有学习记录未修改。'); };
   require(record(raw), '根对象');
   require(raw.version === SCHEMA_VERSION, 'version（仅支持完整 v1 备份）');
@@ -49,16 +51,25 @@ function validateBackup(raw) {
     require(typeof actual === typeof value && (typeof value !== 'number' || numeric(actual)), 'settings.' + key);
   }
   require(raw.settings.dailyGoal > 0 && raw.settings.ttsRate > 0, 'settings');
-  const entries = (key, check) => Object.entries(raw[key]).forEach(([id, value]) => {
-    require(!['__proto__', 'constructor', 'prototype'].includes(id) && record(value) && check(value), key + '.' + id);
+  const deckIds = new Set();
+  raw.userDecks.forEach((v, index) => {
+    require(record(v) && safeId(v.id) && !['b1', 'b2'].includes(v.id) && !deckIds.has(v.id) &&
+      typeof v.name === 'string' && typeof v.level === 'string', 'userDecks.' + index);
+    deckIds.add(v.id);
   });
-  entries('states', (v) => (!('id' in v) || name(v.id)) &&
-    ['ef', 'interval', 'reps', 'lapses', 'due', 'lastReviewed', 'lastRating', 'totalReviews'].every((key) => !(key in v) || numeric(v[key])) &&
-    (!('history' in v) || (Array.isArray(v.history) && v.history.every((h) => record(h) && numeric(h.at) && numeric(h.rating)))));
-  entries('customCards', (v) => name(v.term) && ['id', 'deckId', 'pos', 'zh', 'example', 'exZh', 'level'].every((key) => !(key in v) || typeof v[key] === 'string'));
+  const entries = (key, check) => Object.entries(raw[key]).forEach(([id, value]) => {
+    require(safeId(id) && record(value) && check(value, id), key + '.' + id);
+  });
+  // 非空记录必须能进入队列并完成下一次评分；不能猜测缺失的学习进度或卡组。
+  entries('states', (v, id) => v.id === id && numeric(v.ef) && v.ef >= 1.3 && v.ef <= 3 &&
+    ['interval', 'due', 'lastReviewed'].every((key) => numeric(v[key]) && v[key] >= 0) &&
+    ['reps', 'lapses', 'totalReviews'].every((key) => count(v[key])) &&
+    [-1, 0, 1, 2].includes(v.lastRating) && Array.isArray(v.history) &&
+    v.history.every((h) => record(h) && numeric(h.at) && h.at >= 0 && [0, 1, 2].includes(h.rating)));
+  entries('customCards', (v, id) => v.id === id && deckIds.has(v.deckId) && name(v.term) && name(v.zh) &&
+    ['pos', 'example', 'exZh', 'level'].every((key) => !(key in v) || typeof v[key] === 'string'));
   entries('quizStats', (v) => numeric(v.attempts) && numeric(v.correct));
   entries('listeningStats', (v) => numeric(v.plays) && numeric(v.best));
-  require(raw.userDecks.every((v) => record(v) && name(v.id) && typeof v.name === 'string' && typeof v.level === 'string'), 'userDecks 条目');
   require(raw.events.length <= MAX_EVENTS && raw.events.every((v) => record(v) && numeric(v.ts)), 'events 条目或数量');
   require(raw.mistakes.every((v) => record(v) && name(v.id)), 'mistakes 条目');
 }
