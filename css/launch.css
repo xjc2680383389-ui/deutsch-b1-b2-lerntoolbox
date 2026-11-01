@@ -1,0 +1,58 @@
+/* 与 App 图标配套的开屏：系统字体与本地图像，无外部资源。 */
+.launch-screen[hidden] { display: none; }
+.launch-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  isolation: isolate;
+  overflow: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100%;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  color: #176b58;
+  background: radial-gradient(ellipse at 50% 40%, #e6eddf 0, #f7f8f5 43%);
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  text-align: center;
+}
+.launch-screen::before, .launch-screen::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  width: 70%;
+  height: 60%;
+  border: 1px solid #bdd0b5;
+  border-radius: 50%;
+  opacity: .65;
+}
+.launch-screen::before { top: -43%; right: -25%; transform: rotate(-30deg); }
+.launch-screen::after { bottom: -43%; left: -35%; transform: rotate(-35deg); }
+.launch-open { overflow: hidden; }
+.launch-brand { margin-top: max(60px, 22svh); position: relative; animation: launch-arrive .6s ease-out both; }
+.launch-icon { display: block; width: clamp(92px, 28vw, 126px); height: auto; aspect-ratio: 1; margin: 0 auto 28px; border-radius: 26%; box-shadow: 0 16px 38px #244c3326; }
+.launch-brand h1 { margin: 0; font-size: clamp(24px, 6.5vw, 30px); font-weight: 600; line-height: 1.5; letter-spacing: 3px; color: #124d40; }
+.launch-level { margin: 12px 0 0; color: #729270; font-size: 12px; font-weight: 600; letter-spacing: 6px; padding-left: 6px; }
+.launch-tagline { margin: clamp(30px, 6svh, 58px) 0 0; color: #617b69; font-size: 12px; letter-spacing: 3px; }
+.launch-enter { display: inline-flex; gap: 18px; align-items: center; justify-content: center; margin: auto 0 0; padding: 12px 24px; min-height: 44px; border: 1px solid #b9ccba; border-radius: 999px; background: transparent; color: #34694f; font: 12px/1.5 "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif; text-decoration: none; cursor: pointer; transition: background .15s; }
+.launch-enter:hover { background: #e8efe3; }
+.launch-enter:focus-visible { outline: 3px solid #79a993; outline-offset: 5px; }
+.launch-footer { position: relative; margin-top: 28px; color: #70856f; font-size: 10px; letter-spacing: 2px; }
+.launch-footer p { margin: 8px 0 0; }
+.launch-flag { display: inline-block; width: 24px; height: 15px; background: linear-gradient(to bottom, #202020 0 33.333%, #dd2027 33.333% 66.666%, #edb72a 66.666% 100%); border-radius: 3px; }
+.brand-mark.brand-image { display: block; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 26%; }
+.splash-body { margin: 0; background: #f7f8f5; }
+.splash-page { position: relative; min-height: 100vh; min-height: 100svh; }
+.splash-page .launch-enter { margin-top: max(36px, 8svh); }
+.splash-page .launch-footer { margin-top: auto; padding-top: 28px; }
+@keyframes launch-arrive { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-height: 650px) {
+  .launch-brand { margin-top: 35px; }
+  .launch-icon { width: 82px; margin-bottom: 18px; }
+  .launch-tagline { margin-top: 24px; }
+  .launch-enter { margin-top: 28px; }
+  .launch-footer { margin-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { .launch-brand { animation: none; } .launch-enter { transition: none; } }

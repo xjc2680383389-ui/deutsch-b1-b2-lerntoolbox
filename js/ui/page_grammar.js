@@ -1,6 +1,6 @@
 // 语法练习页：专题列表 → 逐题作答 → 即时判分与解析 → 结束报告
 import { store, recordQuiz, addMistake } from './state.js';
-import { TOPICS } from '../data/index.js';
+import { TOPICS } from '../data/grammar.js';
 import { buildSession, judgeMc, judgeFill, TYPE_FILL } from '../core/quiz.js';
 import { esc, qs, qsa, toast, fmtPercent } from './util.js';
 

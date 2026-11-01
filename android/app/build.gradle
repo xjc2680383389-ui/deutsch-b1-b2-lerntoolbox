@@ -1,0 +1,43 @@
+plugins { id 'com.android.application' }
+def previewStore = System.getenv('PREVIEW_KEYSTORE_FILE')
+def previewPassword = System.getenv('PREVIEW_KEYSTORE_PASSWORD')
+if (System.getenv('CI') == 'true' && (!previewStore || !previewPassword)) {
+    throw new GradleException('CI requires the persistent preview signing key; refusing a temporary certificate.')
+}
+android {
+    namespace 'cn.deutsch.toolbox'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'cn.deutsch.toolbox'
+        minSdk 26
+        targetSdk 35
+        // CI builds a lower-version fixture to verify an actual covering update.
+        versionCode providers.gradleProperty('previewVersionCode').getOrElse('4').toInteger()
+        versionName '1.0.3-preview'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    if (previewStore) {
+        if (!previewPassword || !file(previewStore).isFile()) {
+            throw new GradleException('The configured preview keystore or password is missing.')
+        }
+        signingConfigs {
+            debug {
+                storeFile file(previewStore)
+                storeType 'PKCS12'
+                storePassword previewPassword
+                keyAlias 'preview'
+                keyPassword previewPassword
+            }
+        }
+    }
+}
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.core:core:1.15.0'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

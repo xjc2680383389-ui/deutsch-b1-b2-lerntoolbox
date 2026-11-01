@@ -3,7 +3,7 @@ const W = 680;
 
 // 柱状图：rows = [{label, value, tip}]
 export function barChart(rows, options = {}) {
-  const opts = Object.assign({ height: 220, color: '#2b6cb0', unit: '' }, options);
+  const opts = Object.assign({ height: 220, color: '#7d9f7d', unit: '' }, options);
   const list = rows || [];
   const max = Math.max(1, ...list.map((r) => r.value || 0));
   const padL = 34;
@@ -39,7 +39,7 @@ export function barChart(rows, options = {}) {
 
 // 折线图：rows = [{label, rate(0~1 或 null)}]
 export function lineChart(rows, options = {}) {
-  const opts = Object.assign({ height: 200, color: '#2f855a' }, options);
+  const opts = Object.assign({ height: 200, color: '#538464' }, options);
   const list = rows || [];
   const h = opts.height;
   const padL = 34;

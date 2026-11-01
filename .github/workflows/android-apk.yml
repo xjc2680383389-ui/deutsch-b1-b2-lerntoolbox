@@ -1,0 +1,87 @@
+name: Android APK
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PREVIEW_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_PREVIEW_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run selftest
+      - run: node scripts/prepare-android.mjs
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare Android SDK
+        run: |
+          sdk_manager="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          test -n "$sdk_manager"
+          "$sdk_manager" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Restore persistent preview signing key
+        env:
+          PREVIEW_KEYSTORE_BASE64: ${{ secrets.ANDROID_PREVIEW_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$PREVIEW_KEYSTORE_BASE64" && test -n "$PREVIEW_KEYSTORE_PASSWORD"
+          umask 077
+          printf '%s' "$PREVIEW_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/deutsch-preview.p12"
+          test -s "$RUNNER_TEMP/deutsch-preview.p12"
+          echo "PREVIEW_KEYSTORE_FILE=$RUNNER_TEMP/deutsch-preview.p12" >> "$GITHUB_ENV"
+      - name: Build lower-version upgrade fixture
+        run: |
+          gradle -p android clean assembleDebug -PpreviewVersionCode=3 --no-build-cache --no-daemon
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/upgrade-baseline.apk"
+      - name: Build installable preview and tests
+        run: gradle -p android clean assembleDebug lintDebug assembleDebugAndroidTest --no-build-cache --no-daemon
+      - name: Verify both APK certificates
+        run: |
+          mkdir -p android-ui-qa
+          expected="$(tr -d '\r\n' < android/preview-signing.sha256)"
+          for apk in "$RUNNER_TEMP/upgrade-baseline.apk" android/app/build/outputs/apk/debug/app-debug.apk; do
+            signature="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk")"
+            actual="$(printf '%s\n' "$signature" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')"
+            test "$actual" = "$expected"
+            printf '%s: %s\n' "$(basename "$apk")" "$actual" | tee -a android-ui-qa/signing.txt
+          done
+      - name: Enable emulator acceleration
+        run: |
+          sudo chmod 666 /dev/kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            bash scripts/verify-android-upgrade.sh
+            gradle -p android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass=cn.deutsch.toolbox.UpgradePersistenceTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true --no-daemon
+            mkdir -p android-ui-qa
+            adb pull /sdcard/Android/data/cn.deutsch.toolbox/files/ android-ui-qa/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-ui-qa
+          path: |
+            android-ui-qa/
+            android/app/build/reports/androidTests/
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deutsch-assistant-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

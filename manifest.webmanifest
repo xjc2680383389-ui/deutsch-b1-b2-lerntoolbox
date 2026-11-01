@@ -1,0 +1,16 @@
+{
+  "id": "./index.html",
+  "name": "德语学习助手 · B1/B2 学习工具箱",
+  "short_name": "德语助手",
+  "description": "按自己的节奏，积累单词、语法与听力。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8f5",
+  "theme_color": "#176b58",
+  "icons": [
+    { "src": "assets/brand/icon-192.webp", "sizes": "192x192", "type": "image/webp", "purpose": "any" },
+    { "src": "assets/brand/icon-512.webp", "sizes": "512x512", "type": "image/webp", "purpose": "any" }
+  ]
+}
