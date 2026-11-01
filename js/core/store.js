@@ -1,4 +1,6 @@
 // 持久化层：localStorage / 内存后端通用（纯逻辑，可注入后端，便于自检）
+import { schedule } from './srs.js';
+
 export const SCHEMA_VERSION = 1;
 export const STORAGE_KEY = 'dwt.db.v1';
 export const BEFORE_IMPORT_KEY = STORAGE_KEY + '.before-import';
@@ -60,12 +62,18 @@ function validateBackup(raw) {
   const entries = (key, check) => Object.entries(raw[key]).forEach(([id, value]) => {
     require(safeId(id) && record(value) && check(value, id), key + '.' + id);
   });
+  const now = Date.now() + raw.settings.timeOffsetMs;
+  const canSchedule = (state) => [0, 1, 2].every((rating) => {
+    const next = schedule(state, rating, now);
+    return ['interval', 'due', 'lastReviewed'].every((key) => numeric(next[key]) && next[key] >= 0) &&
+      ['reps', 'lapses', 'totalReviews'].every((key) => count(next[key]));
+  });
   // 非空记录必须能进入队列并完成下一次评分；不能猜测缺失的学习进度或卡组。
   entries('states', (v, id) => v.id === id && numeric(v.ef) && v.ef >= 1.3 && v.ef <= 3 &&
     ['interval', 'due', 'lastReviewed'].every((key) => numeric(v[key]) && v[key] >= 0) &&
     ['reps', 'lapses', 'totalReviews'].every((key) => count(v[key])) &&
     [-1, 0, 1, 2].includes(v.lastRating) && Array.isArray(v.history) &&
-    v.history.every((h) => record(h) && numeric(h.at) && h.at >= 0 && [0, 1, 2].includes(h.rating)));
+    v.history.every((h) => record(h) && numeric(h.at) && h.at >= 0 && [0, 1, 2].includes(h.rating)) && canSchedule(v));
   entries('customCards', (v, id) => v.id === id && deckIds.has(v.deckId) && name(v.term) && name(v.zh) &&
     ['pos', 'example', 'exZh', 'level'].every((key) => !(key in v) || typeof v[key] === 'string'));
   entries('quizStats', (v) => numeric(v.attempts) && numeric(v.correct));

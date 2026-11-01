@@ -64,7 +64,7 @@ namespace DeutschAssistant
                 string originalSnapshot=(string)await app.Value("localStorage.getItem('dwt.db.v1.before-import')");
                 string invalid=Path.Combine(directory,"invalid-backup.json");
                 var invalidSamples=new List<string>{"{invalid","{}","null","[]","{\"version\":1,\"settings\":{},\"states\":null,\"userDecks\":null,\"events\":null}",File.ReadAllText(backup).Replace("\"version\": 1","\"version\": 99")};
-                foreach(string mutation in new[]{"db.states['b1:abholen']={}","db.states['b1:abholen']={id:'b1:abholen',lastReviewed:0}","db.states['windows-qa:Test'].id='wrong'","db.customCards['windows-qa:Test']={term:'Test'}","db.customCards['windows-qa:Test'].deckId='missing'","db.customCards['windows-qa:Test'].id='wrong'"})
+                foreach(string mutation in new[]{"db.states['b1:abholen']={}","db.states['b1:abholen']={id:'b1:abholen',lastReviewed:0}","db.states['windows-qa:Test'].id='wrong'","db.states['windows-qa:Test'].interval=1e308;db.states['windows-qa:Test'].reps=3","db.states['windows-qa:Test'].interval=1e301;db.states['windows-qa:Test'].reps=3","db.states['windows-qa:Test'].totalReviews=Number.MAX_SAFE_INTEGER","db.customCards['windows-qa:Test']={term:'Test'}","db.customCards['windows-qa:Test'].deckId='missing'","db.customCards['windows-qa:Test'].id='wrong'"})
                     invalidSamples.Add((string)await app.AsyncValue("const db=JSON.parse("+app.Json.Serialize(original)+");"+mutation+";return JSON.stringify(db);"));
                 foreach(string sample in invalidSamples)
                 {

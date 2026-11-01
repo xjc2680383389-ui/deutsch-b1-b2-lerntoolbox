@@ -15,6 +15,59 @@ function cardBackup() {
 }
 
 export const results = [
+  t('下一次评分会溢出的备份在写入前拒绝，旧库和恢复快照不变', () => {
+    const bad = [
+      { interval: 1e308, reps: 3 },
+      { interval: 1e301, reps: 3 },
+      ...['reps', 'lapses', 'totalReviews'].map((key) => ({ [key]: Number.MAX_SAFE_INTEGER })),
+    ];
+    bad.forEach((fields) => {
+      const initial = cardBackup(); initial.events = [{ ts: 42 }];
+      const backend = createMemoryBackend(initial), store = createStore(backend);
+      backend.setItem(BEFORE_IMPORT_KEY, '原恢复快照');
+      const before = backend.getItem(STORAGE_KEY), memory = store.exportJson();
+      const candidate = cardBackup();
+      Object.assign(candidate.states['b1:abholen'], fields);
+      const set = backend.setItem; let writes = 0;
+      backend.setItem = (key, value) => { writes += 1; set(key, value); };
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const r = store.importJson(JSON.stringify(candidate));
+        eq(r.ok, false, '拒绝下一次评分溢出的状态');
+        assert(r.error.includes('states.b1:abholen'), '错误定位到卡片状态');
+        eq(backend.getItem(STORAGE_KEY), before, '主库原文不变');
+        eq(store.exportJson(), memory, '内存库不变');
+        eq(store.exportBeforeImport(), '原恢复快照', '已有快照不变');
+      }
+      eq(writes, 0, '拒绝前没有任何写入');
+    });
+  }),
+  t('仍可安全评分的极大间隔兼容导入，真实评分后可备份往返', () => {
+    for (const key of ['reps', 'lapses', 'totalReviews']) {
+      const candidate = cardBackup(); candidate.states['b1:abholen'][key] = Number.MAX_SAFE_INTEGER - 1;
+      const store = createStore(createMemoryBackend());
+      eq(store.importJson(JSON.stringify(candidate)).ok, true, '下一次加一仍安全的 ' + key + ' 可导入');
+      for (const rating of [0, 1, 2]) {
+        const next = schedule(store.data.states['b1:abholen'], rating, 1000);
+        assert(Number.isSafeInteger(next[key]), '评分后 ' + key + ' 仍为安全整数');
+      }
+    }
+    for (const fields of [{ interval: 1e308, reps: 0 }, { interval: 1e308, reps: 1 }, { interval: 1e100, reps: 3 }]) {
+      for (const rating of [0, 1, 2]) {
+        const candidate = cardBackup(); candidate.settings.timeOffsetMs = 86400000;
+        Object.assign(candidate.states['b1:abholen'], fields);
+        const backend = createMemoryBackend(), store = createStore(backend);
+        eq(store.importJson(JSON.stringify(candidate)).ok, true, '不按任意间隔上限拒绝可调度的状态');
+        const next = schedule(store.data.states['b1:abholen'], rating, Date.now() + candidate.settings.timeOffsetMs);
+        ['interval', 'due', 'lastReviewed'].forEach((key) => assert(Number.isFinite(next[key]), '评分后 ' + key + ' 有限'));
+        store.update((db) => { db.states['b1:abholen'] = next; return db; });
+        store.load();
+        eq(store.data.states['b1:abholen'].lastRating, rating, '实际评分已保存');
+        const restored = createStore(createMemoryBackend());
+        eq(restored.importJson(store.exportJson()).ok, true, '评分结果可再次导入');
+        eq(restored.data.states['b1:abholen'].interval, next.interval, '保留评分后的间隔');
+      }
+    }
+  }),
   t('残缺状态、自建卡和错误归属在任何写入前拒绝，重复导入也保留旧快照', () => {
     const mutations = [
       (db) => { db.states['b1:abholen'] = {}; },
