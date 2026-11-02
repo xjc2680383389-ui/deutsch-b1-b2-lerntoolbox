@@ -39,6 +39,18 @@ namespace DeutschAssistant
                 app.MaximizeButton.PerformClick();
                 await Task.Delay(200);
                 check(app.WindowState==FormWindowState.Maximized,"Custom maximize button works");
+                var normalBounds=app.RestoreBounds;
+                app.ToggleFullscreen();
+                await Task.Delay(150);
+                check(!app.TitleBar.Visible,"Fullscreen from maximized window hides the header");
+                app.ToggleFullscreen();
+                await Task.Delay(150);
+                check(app.WindowState==FormWindowState.Maximized,"Fullscreen exit preserves maximized state");
+                app.MaximizeButton.PerformClick();
+                await Task.Delay(150);
+                check(app.WindowState==FormWindowState.Normal && app.Bounds==normalBounds,"Restore after maximized fullscreen returns to original normal bounds");
+                app.MaximizeButton.PerformClick();
+                await Task.Delay(150);
                 var work=Screen.FromControl(app).WorkingArea;
                 check(app.Bounds.Bottom<=work.Bottom+2 && app.Bounds.Top>=work.Top-2,"Maximized window respects taskbar working area");
                 await NativeChromeSmoke.Check(app,directory,"maximized",check);
